@@ -74,12 +74,12 @@ object LocalIntentParser {
             val body = t
                 .replace(
                     Regex(
-                        """(please|iris|mujhe|mereko|ko|remind me to|remind me|remind|yaad dilana|yaad dila do|yaad dila|reminder set karo|reminder|set)"""
+                        """(please|iris|mujhe|mereko|remind me to|remind me|remind|yaad dilana|yaad dila do|yaad dila|reminder set karo|reminder|set)"""
                     ),
                     " "
                 )
                 .replace(Regex("""\d{1,2}[:. ]?\d{0,2}\s*(am|pm|baje|bje)?"""), " ")
-                .replace(Regex("""(minute|minutes|min|mint|baad|me|mein|par|pe|at|in)"""), " ")
+                .replace(Regex("""\b(minute|minutes|min|mint|baad|me|mein|par|pe|at|in|ko)\b"""), " ")
                 .replace(Regex("\\s+"), " ")
                 .trim()
             val args = HashMap<String, String>()
@@ -89,7 +89,7 @@ object LocalIntentParser {
                 hourMatch != null -> {
                     var h = hourMatch.groupValues[1].toIntOrNull() ?: 9
                     val marker = hourMatch.groupValues[3]
-                    if ((marker == "pm") && h < 12) h += 12
+                    if (marker == "pm" && h < 12) h += 12
                     if (marker == "am" && h == 12) h = 0
                     args["hour"] = h.toString()
                     args["minute"] = (hourMatch.groupValues[2].toIntOrNull() ?: 0).toString()
@@ -158,10 +158,19 @@ object LocalIntentParser {
             return ToolCall("media", mapOf("action" to action))
         }
 
-        // ---- Notes ---------------------------------------------------------
+        // ---- Notes & on-device memory --------------------------------------
         Regex("^(note|note karo|likh lo|likho|yaad rakho|remember)\\s+(.+)").find(t)?.let {
             return ToolCall("note", mapOf("text" to it.groupValues[2].clean()))
         }
+        Regex("(?:notes|note|memory|history)\\s*(?:me|mein|se)\\s*(.+?)\\s*(?:dhundo|search karo|khojo|find karo)")
+            .find(t)?.let {
+                return ToolCall("memory_search", mapOf("query" to it.groupValues[1].clean()))
+            }
+        Regex("^(?:mujhe|maine)?\\s*(?:kya|kuch)?\\s*(?:bola tha|likha tha|save kiya tha)\\s*(.*)")
+            .find(t)?.let {
+                val q = it.groupValues[1].clean()
+                if (q.isNotBlank()) return ToolCall("memory_search", mapOf("query" to q))
+            }
         if (Regex("(mere|meri|my)?\\s*(notes|note)\\s*(padho|dikhao|read|show|batao)")
                 .containsMatchIn(t)
         ) {
@@ -181,7 +190,15 @@ object LocalIntentParser {
         if (t.contains("scroll")) {
             return ToolCall("screen", mapOf("action" to "scroll"))
         }
-        if (Regex("(screen|screenshot)\\s*(padho|read|summarize|samjhao|batao)").containsMatchIn(t)) {
+
+        // ---- Screen understanding ------------------------------------------
+        if (Regex("(isko|ise|iska|screen|page)\\s*(matlab|samjhao|samjha do|explain|summary|summarize)")
+                .containsMatchIn(t) ||
+            Regex("(explain|samjhao)\\s*(this|ye|yeh|screen)").containsMatchIn(t)
+        ) {
+            return ToolCall("explain_screen")
+        }
+        if (Regex("(screen|screenshot)\\s*(padho|read|batao|sunao)").containsMatchIn(t)) {
             return ToolCall("read_screen")
         }
 
@@ -191,9 +208,7 @@ object LocalIntentParser {
         }
 
         // ---- Notifications --------------------------------------------------
-        if (Regex("(kya miss kiya|kya missed|what did i miss|digest|summary of notification)")
-                .containsMatchIn(t)
-        ) {
+        if (Regex("(kya miss kiya|kya missed|what did i miss|digest)").containsMatchIn(t)) {
             return ToolCall("notification_digest")
         }
         if (Regex("notification(s)?\\s*(ka)?\\s*(digest|summary)").containsMatchIn(t)) {
@@ -206,21 +221,24 @@ object LocalIntentParser {
             return ToolCall("screen", mapOf("action" to "notifications"))
         }
 
+        // ---- Self diagnostics ----------------------------------------------
+        if (Regex("(offline|voice|mic|permission)\\s*(status|check|test|ready)").containsMatchIn(t) ||
+            Regex("(kya kya|kaunsi)\\s*permission").containsMatchIn(t)
+        ) {
+            return ToolCall("voice_status")
+        }
+
         // ---- Percentages ---------------------------------------------------
         Regex("""(\d+(?:\.\d+)?)\s*(?:ka|of)\s*(\d+(?:\.\d+)?)\s*(?:percent|%)""").find(t)?.let {
             return ToolCall(
                 "calculator",
-                mapOf(
-                    "expression" to it.groupValues[1] + "*" + it.groupValues[2] + "/100"
-                )
+                mapOf("expression" to it.groupValues[1] + "*" + it.groupValues[2] + "/100")
             )
         }
         Regex("""(\d+(?:\.\d+)?)\s*(?:percent|%)\s*(?:of|ka)\s*(\d+(?:\.\d+)?)""").find(t)?.let {
             return ToolCall(
                 "calculator",
-                mapOf(
-                    "expression" to it.groupValues[1] + "*" + it.groupValues[2] + "/100"
-                )
+                mapOf("expression" to it.groupValues[1] + "*" + it.groupValues[2] + "/100")
             )
         }
 
