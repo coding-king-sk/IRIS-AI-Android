@@ -1,6 +1,7 @@
 package com.irisx.ai.ui.settings
 
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,9 +20,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.irisx.ai.data.SettingsStore
+import com.irisx.ai.service.OverlayBubbleService
 import com.irisx.ai.ui.components.GlassPanel
 import com.irisx.ai.ui.components.PanelHeader
 import com.irisx.ai.ui.theme.IrisColors
@@ -53,6 +54,10 @@ fun SettingsScreen(isSystemActive: Boolean) {
     var localOnly by remember { mutableStateOf(store.localOnly) }
     var ttsEnabled by remember { mutableStateOf(store.ttsEnabled) }
     var hinglish by remember { mutableStateOf(store.hinglishMode) }
+    var continuous by remember { mutableStateOf(store.continuousMode) }
+    var haptics by remember { mutableStateOf(store.haptics) }
+    var soundCues by remember { mutableStateOf(store.soundCues) }
+    var bubbleOn by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -97,6 +102,65 @@ fun SettingsScreen(isSystemActive: Boolean) {
         }
 
         GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
+            PanelHeader(
+                title = "CONVERSATION",
+                subtitle = "HANDS FREE FLOW",
+                trailing = {
+                    Text(
+                        if (continuous) "CONTINUOUS" else "WAKE WORD ONLY",
+                        style = MonoTiny,
+                        color = IrisColors.Accent
+                    )
+                }
+            )
+            ToggleRow("CONTINUOUS MODE (AUTO FOLLOW UP)", continuous) {
+                continuous = it
+                store.continuousMode = it
+            }
+            ToggleRow("HAPTIC FEEDBACK", haptics) {
+                haptics = it
+                store.haptics = it
+            }
+            ToggleRow("SOUND CUES (BEEPS)", soundCues) {
+                soundCues = it
+                store.soundCues = it
+            }
+            Text(
+                "Continuous mode on hone par jawab ke baad mic 3 turn tak khula rehta hai, wake word dobara bolna nahi padta.",
+                style = MonoTiny,
+                color = IrisColors.Zinc600,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+
+        GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
+            PanelHeader(title = "FLOATING BUBBLE", subtitle = "IRIS OVER EVERY APP")
+            ToggleRow("SHOW FLOATING BUBBLE", bubbleOn) { wanted ->
+                if (wanted) {
+                    if (OverlayBubbleService.canShow(context)) {
+                        OverlayBubbleService.start(context)
+                        bubbleOn = true
+                    } else {
+                        OverlayBubbleService.requestPermission(context)
+                        bubbleOn = false
+                    }
+                } else {
+                    OverlayBubbleService.stop(context)
+                    bubbleOn = false
+                }
+            }
+            ActionRow("DISPLAY OVER OTHER APPS") {
+                OverlayBubbleService.requestPermission(context)
+            }
+            Text(
+                "Bubble ko drag karke kahin bhi rakho, tap karne par IRIS khul jayega.",
+                style = MonoTiny,
+                color = IrisColors.Zinc600,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+
+        GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
             PanelHeader(title = "CLOUD BRAIN", subtitle = "OPTIONAL · USED ONLY WHEN ONLINE")
             FieldRow(label = "BASE URL", value = baseUrl) {
                 baseUrl = it
@@ -125,6 +189,29 @@ fun SettingsScreen(isSystemActive: Boolean) {
             }
             ActionRow("NOTIFICATION ACCESS") {
                 context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+            }
+            ActionRow("MODIFY SYSTEM SETTINGS (BRIGHTNESS)") {
+                runCatching {
+                    val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                    intent.data = android.net.Uri.parse("package:" + context.packageName)
+                    context.startActivity(intent)
+                }
+            }
+            ActionRow("EXACT ALARMS (REMINDERS)") {
+                runCatching {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                    } else {
+                        context.startActivity(Intent(Settings.ACTION_DATE_SETTINGS))
+                    }
+                }
+            }
+            ActionRow("APP PERMISSIONS (MIC, CONTACTS, CALENDAR)") {
+                runCatching {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    intent.data = android.net.Uri.parse("package:" + context.packageName)
+                    context.startActivity(intent)
+                }
             }
             ActionRow("BATTERY OPTIMISATION") {
                 context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
