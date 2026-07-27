@@ -1,9 +1,8 @@
 package com.irisx.ai.ui.device
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.os.BatteryManager
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,15 +52,15 @@ fun DeviceScreen() {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             GlassPanel(modifier = Modifier.weight(1f), radius = 14, contentPadding = 10) {
                 Text("BATTERY", style = MonoTiny, color = IrisColors.Zinc600)
-                Text("${'$'}battery%", style = MonoLabel, color = IrisColors.Accent)
+                Text("$battery%", style = MonoLabel, color = IrisColors.Accent)
             }
             GlassPanel(modifier = Modifier.weight(1f), radius = 14, contentPadding = 10) {
                 Text("ANDROID", style = MonoTiny, color = IrisColors.Zinc600)
-                Text(android.os.Build.VERSION.RELEASE, style = MonoLabel, color = IrisColors.Accent)
+                Text(Build.VERSION.RELEASE, style = MonoLabel, color = IrisColors.Accent)
             }
             GlassPanel(modifier = Modifier.weight(1f), radius = 14, contentPadding = 10) {
                 Text("APPS", style = MonoTiny, color = IrisColors.Zinc600)
-                Text("${'$'}{apps.size}", style = MonoLabel, color = IrisColors.Accent)
+                Text(apps.size.toString(), style = MonoLabel, color = IrisColors.Accent)
             }
         }
 

@@ -60,7 +60,7 @@ fun NotesScreen() {
         GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
             PanelHeader(
                 title = "MEMORY VAULT",
-                subtitle = "${'$'}{notes.size} LOCAL NOTES",
+                subtitle = notes.size.toString() + " LOCAL NOTES",
                 trailing = {
                     Text("OFFLINE", style = MonoTiny, color = IrisColors.Accent)
                 }

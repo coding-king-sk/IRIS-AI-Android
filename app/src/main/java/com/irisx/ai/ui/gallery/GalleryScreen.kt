@@ -1,5 +1,6 @@
 package com.irisx.ai.ui.gallery
 
+import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +47,7 @@ fun GalleryScreen() {
         GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
             PanelHeader(
                 title = "OPTICAL ARCHIVE",
-                subtitle = "${'$'}{images.size} LOCAL IMAGES",
+                subtitle = images.size.toString() + " LOCAL IMAGES",
                 trailing = { Text("MEDIASTORE", style = MonoTiny, color = IrisColors.Accent) }
             )
         }
@@ -79,18 +79,13 @@ fun GalleryScreen() {
     }
 }
 
-private fun queryImages(context: android.content.Context): List<Uri> {
+private fun queryImages(context: Context): List<Uri> {
     val out = mutableListOf<Uri>()
     val projection = arrayOf(MediaStore.Images.Media._ID)
     val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    val sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC"
     runCatching {
-        context.contentResolver.query(
-            collection,
-            projection,
-            null,
-            null,
-            "${'$'}{MediaStore.Images.Media.DATE_ADDED} DESC"
-        )?.use { cursor ->
+        context.contentResolver.query(collection, projection, null, null, sortOrder)?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
             var count = 0
             while (cursor.moveToNext() && count < 300) {
