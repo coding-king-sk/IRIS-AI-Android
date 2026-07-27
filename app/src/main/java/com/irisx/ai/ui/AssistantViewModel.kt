@@ -1,7 +1,6 @@
 package com.irisx.ai.ui
 
 import android.app.Application
-import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.irisx.ai.core.agent.AgentEngine
@@ -112,7 +111,12 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleMic() {
         val muted = !_state.value.isMuted
-        _state.update { it.copy(isMuted = muted, status = if (muted) "MIC MUTED" else "LISTENING FOR WAKE WORD") }
+        _state.update {
+            it.copy(
+                isMuted = muted,
+                status = if (muted) "MIC MUTED" else "LISTENING FOR WAKE WORD"
+            )
+        }
         if (muted) {
             stt.cancel()
             wakeWord.stop()
@@ -162,7 +166,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val reply = agent.handle(text, _state.value.networkOnline)
             append(ChatLine(Role.IRIS, reply.text))
-            history.log("${'$'}text -> ${'$'}{reply.toolName ?: "chat"}")
+            history.log(text + " -> " + (reply.toolName ?: "chat"))
             _state.update {
                 it.copy(
                     lastTool = reply.toolName,

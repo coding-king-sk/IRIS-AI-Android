@@ -101,7 +101,8 @@ fun DashboardScreen(
                     color = if (state.isConnected) IrisColors.Accent else IrisColors.Zinc500
                 )
                 Text(
-                    text = "ENGINE ${'$'}{state.engineMode}" + (state.lastTool?.let { " \u00b7 ${'$'}it" } ?: ""),
+                    text = "ENGINE " + state.engineMode +
+                        (state.lastTool?.let { " \u00b7 " + it.uppercase() } ?: ""),
                     style = MonoTiny,
                     color = IrisColors.Zinc600
                 )
@@ -229,7 +230,12 @@ private fun VisionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(icon, contentDescription = label, tint = if (active) accent else IrisColors.Zinc400, modifier = Modifier.size(14.dp))
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (active) accent else IrisColors.Zinc400,
+            modifier = Modifier.size(14.dp)
+        )
         Text(label, style = MonoLabel, color = if (active) accent else IrisColors.Zinc400)
     }
 }
@@ -414,7 +420,7 @@ private fun CommandInput(onSend: (String) -> Unit) {
             modifier = Modifier.weight(1f),
             decorationBox = { inner ->
                 if (text.isEmpty()) {
-                    Text("type a command…", style = MonoTiny, color = IrisColors.Zinc600)
+                    Text("type a command\u2026", style = MonoTiny, color = IrisColors.Zinc600)
                 }
                 inner()
             }
