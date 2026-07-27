@@ -10,6 +10,7 @@ import com.irisx.ai.core.voice.WakeWordEngine
 import com.irisx.ai.data.HistoryStore
 import com.irisx.ai.data.SettingsStore
 import com.irisx.ai.service.IrisForegroundService
+import com.irisx.ai.util.Feedback
 import com.irisx.ai.util.NetworkMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +39,7 @@ data class IrisUiState(
     val status: String = "STANDBY",
     val engineMode: String = "LOCAL",
     val lastTool: String? = null,
+    val continuous: Boolean = false,
     val transcript: List<ChatLine> = emptyList()
 )
 
@@ -45,17 +47,24 @@ data class IrisUiState(
  * Owns the whole voice loop:
  *   wake word (offline) -> STT (offline-first) -> agent (local intents, cloud
  *   fallback) -> tool execution (offline) -> TTS (on-device).
+ *
+ * With continuous mode on, the mic reopens right after IRIS finishes speaking,
+ * so a conversation can continue without repeating the wake word.
  */
 class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settings = SettingsStore(app)
     private val history = HistoryStore(app)
     private val network = NetworkMonitor(app)
+    private val feedback = Feedback(app)
 
     private val tts = TtsEngine(app)
     private val stt = SttEngine(app)
     private val agent = AgentEngine(app, settings)
     private val wakeWord = WakeWordEngine(app, settings)
+
+    /** Consecutive follow-up turns without a wake word. */
+    private var followUps = 0
 
     private val _state = MutableStateFlow(
         IrisUiState(transcript = history.recent().map { ChatLine(Role.SYSTEM, it) })
@@ -84,10 +93,11 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun boot() {
         _state.update { it.copy(isConnected = true, status = "CORE ONLINE") }
+        if (settings.haptics) feedback.doubleTick()
         say("IRIS online. Bolo, main sun raha hoon.")
         IrisForegroundService.start(getApplication())
         wakeWord.start(
-            onDetected = { if (!_state.value.isMuted) startListening() },
+            onDetected = { if (!_state.value.isMuted) startListening(false) },
             onStatus = { s -> _state.update { it.copy(status = s) } }
         )
     }
@@ -96,6 +106,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         wakeWord.stop()
         stt.cancel()
         tts.stop()
+        followUps = 0
         IrisForegroundService.stop(getApplication())
         _state.update {
             it.copy(
@@ -103,6 +114,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
                 isListening = false,
                 isSpeaking = false,
                 amplitude = 0f,
+                continuous = false,
                 visionMode = VisionMode.OFF,
                 status = "STANDBY"
             )
@@ -114,15 +126,17 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         _state.update {
             it.copy(
                 isMuted = muted,
+                continuous = false,
                 status = if (muted) "MIC MUTED" else "LISTENING FOR WAKE WORD"
             )
         }
+        if (settings.haptics) feedback.tick()
         if (muted) {
             stt.cancel()
             wakeWord.stop()
         } else if (_state.value.isConnected) {
             wakeWord.start(
-                onDetected = { startListening() },
+                onDetected = { startListening(false) },
                 onStatus = { s -> _state.update { it.copy(status = s) } }
             )
         }
@@ -135,32 +149,46 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
     /** Manual (typed) command — works with the mic fully disabled. */
     fun submitText(text: String) {
         if (text.isBlank()) return
-        handleUtterance(text.trim())
+        followUps = 0
+        handleUtterance(text.trim(), spoken = false)
     }
 
     fun stopSpeaking() {
         tts.stop()
-        _state.update { it.copy(isSpeaking = false) }
+        _state.update { it.copy(isSpeaking = false, continuous = false) }
     }
 
-    private fun startListening() {
+    private fun startListening(fromFollowUp: Boolean) {
         if (_state.value.isListening) return
+        if (!fromFollowUp) followUps = 0
         wakeWord.pause()
-        _state.update { it.copy(isListening = true, status = "LISTENING") }
+        if (settings.haptics) feedback.tick()
+        if (settings.soundCues) feedback.wakeCue()
+        _state.update {
+            it.copy(
+                isListening = true,
+                continuous = fromFollowUp,
+                status = if (fromFollowUp) "FOLLOW UP" else "LISTENING"
+            )
+        }
         stt.listen(
             preferOffline = settings.offlineFirst,
             onResult = { text ->
                 _state.update { it.copy(isListening = false) }
-                handleUtterance(text)
+                handleUtterance(text, spoken = true)
             },
             onError = { message ->
-                _state.update { it.copy(isListening = false, status = message) }
+                _state.update {
+                    it.copy(isListening = false, continuous = false, status = message)
+                }
+                followUps = 0
+                if (settings.soundCues && !fromFollowUp) feedback.errorCue()
                 wakeWord.resume()
             }
         )
     }
 
-    private fun handleUtterance(text: String) {
+    private fun handleUtterance(text: String, spoken: Boolean) {
         append(ChatLine(Role.USER, text))
         _state.update { it.copy(status = "THINKING") }
         viewModelScope.launch {
@@ -174,18 +202,41 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
                     status = if (reply.ok) "DONE" else "FAILED"
                 )
             }
-            say(reply.text)
-            wakeWord.resume()
+            if (settings.haptics) feedback.tick(if (reply.ok) 20L else 60L)
+            if (settings.soundCues) {
+                if (reply.ok) feedback.doneCue() else feedback.errorCue()
+            }
+            val shouldFollowUp = spoken &&
+                settings.continuousMode &&
+                _state.value.isConnected &&
+                !_state.value.isMuted &&
+                followUps < MAX_FOLLOW_UPS
+            say(reply.text) {
+                if (shouldFollowUp) {
+                    followUps++
+                    startListening(true)
+                } else {
+                    followUps = 0
+                    _state.update { it.copy(continuous = false) }
+                    wakeWord.resume()
+                }
+            }
         }
     }
 
-    private fun say(text: String) {
-        if (!settings.ttsEnabled) return
+    private fun say(text: String, onFinished: (() -> Unit)? = null) {
+        if (!settings.ttsEnabled) {
+            onFinished?.invoke()
+            return
+        }
         _state.update { it.copy(isSpeaking = true) }
         tts.speak(
             text = text,
             rate = settings.speechRate,
-            onDone = { _state.update { it.copy(isSpeaking = false, amplitude = 0f) } }
+            onDone = {
+                _state.update { it.copy(isSpeaking = false, amplitude = 0f) }
+                onFinished?.invoke()
+            }
         )
     }
 
@@ -199,5 +250,9 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         tts.shutdown()
         network.stop()
         super.onCleared()
+    }
+
+    private companion object {
+        const val MAX_FOLLOW_UPS = 3
     }
 }

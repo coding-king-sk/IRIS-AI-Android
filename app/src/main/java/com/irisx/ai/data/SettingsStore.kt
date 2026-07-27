@@ -48,6 +48,44 @@ class SettingsStore(context: Context) {
         get() = prefs.getFloat(KEY_RATE, 1.0f)
         set(value) = prefs.edit().putFloat(KEY_RATE, value).apply()
 
+    /**
+     * After IRIS answers, keep the mic open for a short follow-up window so the
+     * wake word does not have to be repeated for every turn.
+     */
+    var continuousMode: Boolean
+        get() = prefs.getBoolean(KEY_CONTINUOUS, true)
+        set(value) = prefs.edit().putBoolean(KEY_CONTINUOUS, value).apply()
+
+    var haptics: Boolean
+        get() = prefs.getBoolean(KEY_HAPTICS, true)
+        set(value) = prefs.edit().putBoolean(KEY_HAPTICS, value).apply()
+
+    var soundCues: Boolean
+        get() = prefs.getBoolean(KEY_SOUND_CUES, true)
+        set(value) = prefs.edit().putBoolean(KEY_SOUND_CUES, value).apply()
+
+    /** Accent palette id: green, cyan, amber or violet. */
+    var accent: String
+        get() = prefs.getString(KEY_ACCENT, "green") ?: "green"
+        set(value) = prefs.edit().putString(KEY_ACCENT, value).apply()
+
+    var onboardingDone: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING, false)
+        set(value) = prefs.edit().putBoolean(KEY_ONBOARDING, value).apply()
+
+    /** Voice-profile gating for the wake word (approximate, on-device only). */
+    var voiceLockEnabled: Boolean
+        get() = prefs.getBoolean(KEY_VOICE_LOCK, false)
+        set(value) = prefs.edit().putBoolean(KEY_VOICE_LOCK, value).apply()
+
+    var voiceProfileLevel: Float
+        get() = prefs.getFloat(KEY_VOICE_LEVEL, 0f)
+        set(value) = prefs.edit().putFloat(KEY_VOICE_LEVEL, value).apply()
+
+    var voiceProfileSamples: Int
+        get() = prefs.getInt(KEY_VOICE_SAMPLES, 0)
+        set(value) = prefs.edit().putInt(KEY_VOICE_SAMPLES, value).apply()
+
     private companion object {
         const val KEY_WAKE = "wake_word"
         const val KEY_API = "api_key"
@@ -58,5 +96,13 @@ class SettingsStore(context: Context) {
         const val KEY_TTS = "tts_enabled"
         const val KEY_HINGLISH = "hinglish"
         const val KEY_RATE = "speech_rate"
+        const val KEY_CONTINUOUS = "continuous_mode"
+        const val KEY_HAPTICS = "haptics"
+        const val KEY_SOUND_CUES = "sound_cues"
+        const val KEY_ACCENT = "accent"
+        const val KEY_ONBOARDING = "onboarding_done"
+        const val KEY_VOICE_LOCK = "voice_lock"
+        const val KEY_VOICE_LEVEL = "voice_level"
+        const val KEY_VOICE_SAMPLES = "voice_samples"
     }
 }
