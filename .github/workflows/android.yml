@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,10 +26,60 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Assemble debug APK
-        run: gradle assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRIS-AI-v1.0.0-debug.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: iris-ai-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: dist/IRIS-AI-v1.0.0-debug.apk
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: IRIS AI Android v1.0.0
+          body: |
+            ## IRIS AI for Android — v1.0.0 (first release)
+
+            Voice-first assistant for Android 10+ (minSdk 29), native Kotlin + Jetpack Compose,
+            same neon-green glass UI as the desktop IRIS app.
+
+            ### Download
+            `IRIS-AI-v1.0.0-debug.apk` (attached below, ~57 MB, debug-signed)
+
+            ### Install
+            1. Download the APK on your phone.
+            2. Allow "Install unknown apps" for your file manager / browser.
+            3. Google Play Protect will warn ("App blocked to protect your device") because the
+               APK is debug-signed and not from the Play Store. Tap **More details → Install anyway**.
+            4. On first launch grant: Microphone, Notifications, Contacts, Phone, SMS, Photos.
+            5. Optional for screen control / notification reading:
+               Settings → Accessibility → **IRIS AI**, and
+               Settings → Notifications → Notification access → **IRIS AI**.
+
+            ### Works fully offline
+            - Whole UI, animations, all 5 tabs
+            - Wake word ("hey iris") + on-device speech recognition
+            - Text-to-speech replies
+            - App launching, calls, SMS, WhatsApp intents, alarms, timers
+            - Flashlight, volume, media controls, battery, clock
+            - Notes (local JSON), gallery (MediaStore), screen actions, notification reading
+
+            ### Needs internet (optional)
+            - Free-form conversational answers and web search via the cloud LLM.
+              Add your API key in Settings; leave it blank to stay 100% offline.
+
+            ### Notes
+            - Debug build — not optimized or Play-Store signed.
+            - For fully offline speech, install your language's offline voice pack:
+              Settings → System → Languages → Voice input → Google → Offline speech recognition.
+          files: dist/IRIS-AI-v1.0.0-debug.apk
+          draft: false
+          prerelease: false
