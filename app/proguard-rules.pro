@@ -1,0 +1,4 @@
+-keepattributes *Annotation*, Signature, Exception
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class com.irisx.ai.core.agent.** { *; }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">IRIS AI</string>
+    <string name="accessibility_label">IRIS Screen Control</string>
+    <string name="notification_listener_label">IRIS Notification Reader</string>
+    <string name="channel_name">IRIS Core</string>
+    <string name="channel_desc">Always-on voice layer status</string>
+</resources>
