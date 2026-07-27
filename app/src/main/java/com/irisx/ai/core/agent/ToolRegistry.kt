@@ -14,10 +14,13 @@ import com.irisx.ai.core.tools.ContactInfoTool
 import com.irisx.ai.core.tools.FlashlightTool
 import com.irisx.ai.core.tools.MediaTool
 import com.irisx.ai.core.tools.NoteTool
+import com.irisx.ai.core.tools.NotificationDigestTool
 import com.irisx.ai.core.tools.OpenAppTool
 import com.irisx.ai.core.tools.ReadNotesTool
 import com.irisx.ai.core.tools.ReadNotificationsTool
 import com.irisx.ai.core.tools.ReadScreenTool
+import com.irisx.ai.core.tools.ReminderAddTool
+import com.irisx.ai.core.tools.ReminderListTool
 import com.irisx.ai.core.tools.ScreenActionTool
 import com.irisx.ai.core.tools.ScreenshotTool
 import com.irisx.ai.core.tools.SettingsPanelTool
@@ -37,8 +40,11 @@ class ToolRegistry(private val context: Context) {
         WhatsAppTool(),
         AlarmTool(),
         TimerTool(),
+        ReminderAddTool(),
+        ReminderListTool(),
         FlashlightTool(),
         VolumeTool(),
+        BrightnessTool(),
         MediaTool(),
         NoteTool(),
         ReadNotesTool(),
@@ -46,11 +52,11 @@ class ToolRegistry(private val context: Context) {
         ReadScreenTool(),
         ScreenshotTool(),
         ReadNotificationsTool(),
+        NotificationDigestTool(),
         BatteryTool(),
         ClockTool(),
         SettingsPanelTool(),
         ConnectivityTool(),
-        BrightnessTool(),
         CalculatorTool(),
         UnitConvertTool(),
         ContactInfoTool(),
