@@ -2,6 +2,7 @@ package com.irisx.ai.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.irisx.ai.ui.components.StatusDot
 import com.irisx.ai.ui.dashboard.DashboardScreen
-import com.irisx.ai.ui.gallery.GalleryScreen
 import com.irisx.ai.ui.device.DeviceScreen
+import com.irisx.ai.ui.gallery.GalleryScreen
 import com.irisx.ai.ui.notes.NotesScreen
 import com.irisx.ai.ui.settings.SettingsScreen
 import com.irisx.ai.ui.theme.IrisColors
@@ -110,7 +111,10 @@ private fun TopBar(state: IrisUiState, onLogoClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable(onClick = onLogoClick)
+        ) {
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -119,7 +123,12 @@ private fun TopBar(state: IrisUiState, onLogoClick: () -> Unit) {
                     .border(1.dp, IrisColors.AccentBorder, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("I", color = IrisColors.Accent, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                Text(
+                    "I",
+                    color = IrisColors.Accent,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 14.sp
+                )
             }
             Text(
                 text = "IRIS AI",
@@ -127,9 +136,7 @@ private fun TopBar(state: IrisUiState, onLogoClick: () -> Unit) {
                 fontWeight = FontWeight.Black,
                 fontSize = 14.sp,
                 letterSpacing = 2.sp,
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .then(Modifier)
+                modifier = Modifier.padding(start = 10.dp)
             )
         }
 
@@ -173,9 +180,8 @@ private fun TabStrip(activeTab: String, onSelect: (String) -> Unit) {
                         if (selected) IrisColors.AccentBorder else Color.Transparent,
                         RoundedCornerShape(12.dp)
                     )
-                    .padding(horizontal = 14.dp, vertical = 9.dp)
-                    .then(Modifier)
-                    .clickable { onSelect(tab.id) },
+                    .clickable { onSelect(tab.id) }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -194,6 +200,3 @@ private fun TabStrip(activeTab: String, onSelect: (String) -> Unit) {
         }
     }
 }
-
-private fun Modifier.clickable(onClick: () -> Unit): Modifier =
-    this.then(androidx.compose.foundation.clickable(onClick = onClick))
