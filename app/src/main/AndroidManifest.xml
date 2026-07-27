@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Floating bubble -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Offline reminders -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
@@ -92,6 +95,21 @@
             android:foregroundServiceType="microphone" />
 
         <service
+            android:name=".service.OverlayBubbleService"
+            android:exported="false" />
+
+        <service
+            android:name=".service.IrisTileService"
+            android:exported="true"
+            android:icon="@drawable/iris_logo"
+            android:label="IRIS AI"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".service.IrisAccessibilityService"
             android:exported="true"
             android:label="@string/accessibility_label"
@@ -128,6 +146,18 @@
             <intent-filter>
                 <action android:name="com.irisx.ai.REMINDER_FIRE" />
             </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".widget.IrisWidgetProvider"
+            android:exported="true"
+            android:label="IRIS AI">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/iris_widget_info" />
         </receiver>
     </application>
 </manifest>
