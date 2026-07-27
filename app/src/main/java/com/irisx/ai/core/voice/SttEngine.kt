@@ -8,7 +8,6 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import java.util.Locale
 
 /**
  * Speech-to-text using Android's on-device recognizer.
@@ -54,6 +53,7 @@ class SttEngine(context: Context) {
                 }
 
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
+
                 override fun onEndOfSpeech() {
                     onAmplitude?.invoke(0f)
                 }
@@ -129,9 +129,6 @@ class SttEngine(context: Context) {
         SpeechRecognizer.ERROR_NO_MATCH -> "NO MATCH"
         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "RECOGNIZER BUSY"
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "SILENCE"
-        else -> "STT ERROR ${'$'}code"
+        else -> "STT ERROR " + code.toString()
     }
-
-    @Suppress("unused")
-    private fun defaultLocale(): String = Locale.getDefault().toLanguageTag()
 }

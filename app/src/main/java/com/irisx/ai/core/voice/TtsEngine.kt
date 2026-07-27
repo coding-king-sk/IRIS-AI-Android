@@ -27,6 +27,7 @@ class TtsEngine(context: Context) {
     init {
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
+
             override fun onDone(utteranceId: String?) {
                 doneCallback?.invoke()
             }
@@ -49,7 +50,8 @@ class TtsEngine(context: Context) {
 
     private fun enqueue(text: String, rate: Float) {
         tts.setSpeechRate(rate)
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "iris-${'$'}{System.nanoTime()}")
+        val id = "iris-" + System.nanoTime().toString()
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
     }
 
     fun stop() {
