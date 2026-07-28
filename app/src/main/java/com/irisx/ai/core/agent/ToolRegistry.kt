@@ -8,11 +8,16 @@ import com.irisx.ai.core.tools.CalculatorTool
 import com.irisx.ai.core.tools.CalendarAddTool
 import com.irisx.ai.core.tools.CalendarTodayTool
 import com.irisx.ai.core.tools.CallTool
+import com.irisx.ai.core.tools.CameraTool
 import com.irisx.ai.core.tools.ClockTool
 import com.irisx.ai.core.tools.ConnectivityTool
 import com.irisx.ai.core.tools.ContactInfoTool
 import com.irisx.ai.core.tools.ExplainScreenTool
+import com.irisx.ai.core.tools.FillFormTool
 import com.irisx.ai.core.tools.FlashlightTool
+import com.irisx.ai.core.tools.MacroListTool
+import com.irisx.ai.core.tools.MacroRunTool
+import com.irisx.ai.core.tools.MacroSaveTool
 import com.irisx.ai.core.tools.MediaTool
 import com.irisx.ai.core.tools.MemorySearchTool
 import com.irisx.ai.core.tools.NoteTool
@@ -25,13 +30,17 @@ import com.irisx.ai.core.tools.ReminderAddTool
 import com.irisx.ai.core.tools.ReminderListTool
 import com.irisx.ai.core.tools.ScreenActionTool
 import com.irisx.ai.core.tools.ScreenshotTool
+import com.irisx.ai.core.tools.SendPhotoTool
 import com.irisx.ai.core.tools.SettingsPanelTool
 import com.irisx.ai.core.tools.SmsTool
+import com.irisx.ai.core.tools.TapTool
 import com.irisx.ai.core.tools.TimerTool
+import com.irisx.ai.core.tools.TypeTextTool
 import com.irisx.ai.core.tools.UnitConvertTool
 import com.irisx.ai.core.tools.VoiceStatusTool
 import com.irisx.ai.core.tools.VolumeTool
 import com.irisx.ai.core.tools.WebSearchTool
+import com.irisx.ai.core.tools.WhatsAppSendTool
 import com.irisx.ai.core.tools.WhatsAppTool
 
 class ToolRegistry(private val context: Context) {
@@ -41,6 +50,9 @@ class ToolRegistry(private val context: Context) {
         CallTool(),
         SmsTool(),
         WhatsAppTool(),
+        WhatsAppSendTool(),
+        SendPhotoTool(),
+        CameraTool(),
         AlarmTool(),
         TimerTool(),
         ReminderAddTool(),
@@ -56,6 +68,9 @@ class ToolRegistry(private val context: Context) {
         ReadScreenTool(),
         ExplainScreenTool(),
         ScreenshotTool(),
+        TapTool(),
+        TypeTextTool(),
+        FillFormTool(),
         ReadNotificationsTool(),
         NotificationDigestTool(),
         BatteryTool(),
@@ -68,6 +83,9 @@ class ToolRegistry(private val context: Context) {
         ContactInfoTool(),
         CalendarAddTool(),
         CalendarTodayTool(),
+        MacroSaveTool(),
+        MacroRunTool(),
+        MacroListTool(),
         WebSearchTool()
     )
 
