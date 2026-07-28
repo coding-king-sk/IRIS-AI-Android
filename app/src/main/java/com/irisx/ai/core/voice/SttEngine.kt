@@ -1,7 +1,9 @@
 package com.irisx.ai.core.voice
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -11,8 +13,18 @@ import android.speech.SpeechRecognizer
 
 /**
  * Speech-to-text using Android's on-device recognizer.
- * `EXTRA_PREFER_OFFLINE` keeps recognition local when the language pack is
- * installed, so command capture keeps working in airplane mode.
+ *
+ * Hard-won details this class handles, because they were the reason the mic
+ * felt "dead" earlier:
+ *  - RECORD_AUDIO can be denied at runtime; we surface that instead of failing
+ *    silently.
+ *  - EXTRA_PREFER_OFFLINE fails with a network error on phones that have no
+ *    offline language pack installed, so after a couple of failures we stop
+ *    forcing offline and let the online recognizer answer.
+ *  - A session can die without ever calling back; a watchdog frees the engine
+ *    so the next tap always works.
+ *  - `busy` used to swallow taps forever if a session leaked. Now a new request
+ *    cancels the stale one instead of being dropped.
  */
 class SttEngine(context: Context) {
 
@@ -20,8 +32,20 @@ class SttEngine(context: Context) {
     private val main = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
     private var busy = false
+    private var watchdog: Runnable? = null
+
+    /** Set once the offline pack proves missing, so we stop fighting it. */
+    private var offlineFailures = 0
+    private var forceOnline = false
 
     var onAmplitude: ((Float) -> Unit)? = null
+
+    val micGranted: Boolean
+        get() = appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
+    val recognizerAvailable: Boolean
+        get() = SpeechRecognizer.isRecognitionAvailable(appContext)
 
     fun listen(
         preferOffline: Boolean = true,
@@ -30,24 +54,40 @@ class SttEngine(context: Context) {
         onResult: (String) -> Unit,
         onError: (String) -> Unit
     ) {
-        if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
+        if (!micGranted) {
+            onError("MIC PERMISSION")
+            return
+        }
+        if (!recognizerAvailable) {
             onError("NO RECOGNIZER")
             return
         }
-        if (busy) return
+        // A stale session must never block a fresh request.
+        if (busy) cancel()
         busy = true
 
+        val useOffline = preferOffline && !forceOnline
+
         main.post {
-            recognizer?.destroy()
-            val sr = SpeechRecognizer.createSpeechRecognizer(appContext)
-            recognizer = sr
+            var done = false
+            val sr = recognizer ?: SpeechRecognizer.createSpeechRecognizer(appContext).also {
+                recognizer = it
+            }
+
+            fun finish(fail: String?, text: String?) {
+                if (done) return
+                done = true
+                busy = false
+                clearWatchdog()
+                onAmplitude?.invoke(0f)
+                if (fail != null) onError(fail) else onResult(text.orEmpty())
+            }
 
             sr.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) = Unit
                 override fun onBeginningOfSpeech() = Unit
 
                 override fun onRmsChanged(rmsdB: Float) {
-                    // Map roughly -2..10 dB onto 0..1 for the AI core animation.
                     val level = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
                     onAmplitude?.invoke(level)
                 }
@@ -59,46 +99,87 @@ class SttEngine(context: Context) {
                 }
 
                 override fun onError(error: Int) {
-                    busy = false
-                    onAmplitude?.invoke(0f)
-                    onError(errorLabel(error))
+                    val networkish = error == SpeechRecognizer.ERROR_NETWORK ||
+                        error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
+                        error == SpeechRecognizer.ERROR_SERVER
+                    if (useOffline && networkish) {
+                        offlineFailures++
+                        if (offlineFailures >= 2) forceOnline = true
+                    }
+                    if (error == SpeechRecognizer.ERROR_CLIENT ||
+                        error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                    ) {
+                        // These leave the recognizer in a bad state; rebuild next time.
+                        runCatching { recognizer?.destroy() }
+                        recognizer = null
+                    }
+                    finish(errorLabel(error), null)
                 }
 
                 override fun onResults(results: Bundle?) {
-                    busy = false
                     val text = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
                         ?.trim()
                         .orEmpty()
-                    if (text.isEmpty()) onError("NOTHING HEARD") else onResult(text)
+                    if (text.isEmpty()) finish("NOTHING HEARD", null) else finish(null, text)
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {
                     partialResults
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
+                        ?.takeIf { it.isNotBlank() }
                         ?.let(onPartial)
                 }
 
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
             })
 
-            sr.startListening(buildIntent(preferOffline, languageTag))
+            val started = runCatching {
+                sr.startListening(buildIntent(useOffline, languageTag))
+            }.isSuccess
+
+            if (!started) {
+                runCatching { sr.destroy() }
+                recognizer = null
+                finish("START FAILED", null)
+                return@post
+            }
+
+            val w = Runnable {
+                runCatching { recognizer?.cancel() }
+                finish("SILENCE", null)
+            }
+            watchdog = w
+            main.postDelayed(w, WATCHDOG_MS)
         }
     }
 
     fun cancel() {
         busy = false
+        clearWatchdog()
         main.post { runCatching { recognizer?.cancel() } }
     }
 
     fun destroy() {
         busy = false
+        clearWatchdog()
         main.post {
             runCatching { recognizer?.destroy() }
             recognizer = null
         }
+    }
+
+    /** Let the user retry offline recognition after installing a language pack. */
+    fun resetOfflinePreference() {
+        offlineFailures = 0
+        forceOnline = false
+    }
+
+    private fun clearWatchdog() {
+        watchdog?.let { main.removeCallbacks(it) }
+        watchdog = null
     }
 
     private fun buildIntent(preferOffline: Boolean, languageTag: String): Intent =
@@ -115,6 +196,14 @@ class SttEngine(context: Context) {
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                1500L
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                1500L
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
                 1200L
             )
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, appContext.packageName)
@@ -128,7 +217,12 @@ class SttEngine(context: Context) {
             "OFFLINE PACK MISSING"
         SpeechRecognizer.ERROR_NO_MATCH -> "NO MATCH"
         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "RECOGNIZER BUSY"
+        SpeechRecognizer.ERROR_SERVER -> "SERVER ERROR"
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "SILENCE"
         else -> "STT ERROR " + code.toString()
+    }
+
+    private companion object {
+        const val WATCHDOG_MS = 12000L
     }
 }
