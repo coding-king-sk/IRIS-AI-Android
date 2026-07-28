@@ -18,12 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,9 +36,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.irisx.ai.data.SettingsStore
 import com.irisx.ai.ui.components.StatusDot
 import com.irisx.ai.ui.dashboard.DashboardScreen
 import com.irisx.ai.ui.device.DeviceScreen
@@ -46,6 +50,7 @@ import com.irisx.ai.ui.settings.SettingsScreen
 import com.irisx.ai.ui.theme.IrisColors
 import com.irisx.ai.ui.theme.MonoTiny
 import com.irisx.ai.ui.theme.TabLabel
+import com.irisx.ai.ui.themes.ThemeScreen
 
 private data class IrisTab(val id: String, val label: String, val icon: ImageVector)
 
@@ -53,6 +58,7 @@ private val tabs = listOf(
     IrisTab("DASHBOARD", "Command", Icons.Filled.GridView),
     IrisTab("NOTES", "Notes", Icons.Filled.StickyNote2),
     IrisTab("GALLERY", "Gallery", Icons.Filled.Image),
+    IrisTab("THEMES", "Themes", Icons.Filled.Palette),
     IrisTab("DEVICE", "Device", Icons.Filled.PhoneAndroid),
     IrisTab("SETTINGS", "Settings", Icons.Filled.Settings)
 )
@@ -68,6 +74,12 @@ fun IrisRoot(
     modifier: Modifier = Modifier
 ) {
     var activeTab by remember { mutableStateOf("DASHBOARD") }
+    val context = LocalContext.current
+
+    // Restore the saved accent as soon as the shell appears.
+    LaunchedEffect(Unit) {
+        IrisColors.apply(SettingsStore(context).accent)
+    }
 
     Column(modifier = modifier.background(IrisColors.Black)) {
         TopBar(state = state, onLogoClick = { activeTab = "DASHBOARD" })
@@ -93,6 +105,7 @@ fun IrisRoot(
                 )
                 "NOTES" -> NotesScreen()
                 "GALLERY" -> GalleryScreen()
+                "THEMES" -> ThemeScreen()
                 "DEVICE" -> DeviceScreen()
                 "SETTINGS" -> SettingsScreen(isSystemActive = state.isConnected)
             }

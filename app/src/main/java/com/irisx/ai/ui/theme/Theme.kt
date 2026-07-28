@@ -10,20 +10,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private val IrisScheme = darkColorScheme(
-    primary = IrisColors.Accent,
-    onPrimary = IrisColors.Black,
-    secondary = IrisColors.Cyan,
-    background = IrisColors.Black,
-    onBackground = IrisColors.Zinc100,
-    surface = IrisColors.Zinc950,
-    onSurface = IrisColors.Zinc200,
-    surfaceVariant = IrisColors.Zinc900,
-    onSurfaceVariant = IrisColors.Zinc400,
-    error = IrisColors.Danger,
-    outline = IrisColors.GlassBorder
-)
-
 /** font-mono tracking-widest uppercase — used all over the desktop UI. */
 val MonoLabel = TextStyle(
     fontFamily = FontFamily.Monospace,
@@ -46,8 +32,24 @@ fun IrisTheme(content: @Composable () -> Unit) {
     // IRIS is dark-only by design; isSystemInDarkTheme is read to stay
     // future-proof if a light variant is added later.
     isSystemInDarkTheme()
+
+    // Built inside the composable so accent changes repaint immediately.
+    val scheme = darkColorScheme(
+        primary = IrisColors.Accent,
+        onPrimary = IrisColors.Black,
+        secondary = IrisColors.Cyan,
+        background = IrisColors.Black,
+        onBackground = IrisColors.Zinc100,
+        surface = IrisColors.Zinc950,
+        onSurface = IrisColors.Zinc200,
+        surfaceVariant = IrisColors.Zinc900,
+        onSurfaceVariant = IrisColors.Zinc400,
+        error = IrisColors.Danger,
+        outline = IrisColors.GlassBorder
+    )
+
     MaterialTheme(
-        colorScheme = IrisScheme,
+        colorScheme = scheme,
         typography = Typography(),
         content = content
     )
