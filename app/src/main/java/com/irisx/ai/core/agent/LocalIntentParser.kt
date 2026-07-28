@@ -10,6 +10,46 @@ object LocalIntentParser {
     fun parse(raw: String): ToolCall? {
         val t = raw.lowercase().trim().replace(Regex("\\s+"), " ")
 
+        // ---- Voice shortcuts (macros) --------------------------------------
+        Regex("^(?:shortcut|macro|routine)\\s*(?:banao|bana do|save karo|create)\\s+(.+?)\\s*[:=]\\s*(.+)")
+            .find(t)?.let {
+                return ToolCall(
+                    "macro_save",
+                    mapOf("name" to it.groupValues[1].clean(), "steps" to it.groupValues[2])
+                )
+            }
+        if (Regex("^(?:shortcut|macro|routine)s?\\s*(?:list|dikhao|batao|kaun se hai)").containsMatchIn(t)) {
+            return ToolCall("macro_list")
+        }
+
+        // ---- Multi step: send a photo to someone ---------------------------
+        Regex("^(.+?)\\s+ko\\s+(?:ek\\s+)?(?:photo|image|picture|pic|tasveer|foto)\\s*(?:bhejo|bhej do|send karo|share karo)")
+            .find(t)?.let {
+                return ToolCall("send_photo", mapOf("contact" to it.groupValues[1].clean()))
+            }
+        Regex("^send\\s+(?:a\\s+)?(?:photo|image|picture|pic)\\s+to\\s+(.+)").find(t)?.let {
+            return ToolCall("send_photo", mapOf("contact" to it.groupValues[1].clean()))
+        }
+
+        // ---- Camera --------------------------------------------------------
+        if (Regex("(selfie|front camera)").containsMatchIn(t)) {
+            return ToolCall("camera", mapOf("mode" to "selfie"))
+        }
+        if (Regex("(video)\\s*(banao|record|shoot|bana do)").containsMatchIn(t) ||
+            Regex("(record)\\s*(video)").containsMatchIn(t)
+        ) {
+            return ToolCall("camera", mapOf("mode" to "video"))
+        }
+        if (Regex("(photo|foto|picture|pic|tasveer|photu)\\s*(kheecho|khecho|kheech|khich|lo|le lo|nikalo|click karo|capture|khinch)")
+                .containsMatchIn(t) ||
+            Regex("(?:take|click)\\s+(?:a\\s+)?(?:photo|picture|pic)").containsMatchIn(t)
+        ) {
+            return ToolCall("camera", mapOf("mode" to "photo"))
+        }
+        if (Regex("^camera\\s*(kholo|khol do|open|chalu karo|start karo)?$").containsMatchIn(t)) {
+            return ToolCall("camera", mapOf("mode" to "photo"))
+        }
+
         // ---- App launching -------------------------------------------------
         Regex("^(open|launch|start|khol|kholo|chalu karo|chala do|shuru karo)\\s+(.+)")
             .find(t)?.let {
@@ -29,14 +69,20 @@ object LocalIntentParser {
         }
 
         // ---- WhatsApp ------------------------------------------------------
-        Regex("whatsapp\\s+(?:pe\\s+)?(.+?)\\s+(?:ko\\s+)?(?:message|msg|bhejo|likho)\\s*(.*)")
+        Regex("whatsapp\\s+(?:pe\\s+|par\\s+)?(.+?)\\s+(?:ko\\s+)?(?:message|msg|bhejo|likho)\\s*(.*)")
             .find(t)?.let {
+                val message = it.groupValues[2].clean()
                 return ToolCall(
-                    "whatsapp",
-                    mapOf(
-                        "contact" to it.groupValues[1].clean(),
-                        "message" to it.groupValues[2].clean()
-                    )
+                    if (message.isBlank()) "whatsapp" else "whatsapp_send",
+                    mapOf("contact" to it.groupValues[1].clean(), "message" to message)
+                )
+            }
+        Regex("^(.+?)\\s+ko\\s+whatsapp\\s*(?:pe|par)?\\s*(?:message|msg)?\\s*(?:bhejo|bhej do|karo|likho)\\s*(.*)")
+            .find(t)?.let {
+                val message = it.groupValues[2].clean()
+                return ToolCall(
+                    if (message.isBlank()) "whatsapp" else "whatsapp_send",
+                    mapOf("contact" to it.groupValues[1].clean(), "message" to message)
                 )
             }
 
@@ -177,6 +223,23 @@ object LocalIntentParser {
             return ToolCall("read_notes")
         }
 
+        // ---- On screen automation ------------------------------------------
+        if (Regex("(form|fields?)\\s*(bhar do|bharo|fill karo|fill kar do|fill)").containsMatchIn(t) ||
+            Regex("(fill)\\s*(this|ye|yeh)?\\s*(form)").containsMatchIn(t)
+        ) {
+            val values = Regex("[:=]\\s*(.+)$").find(t)?.groupValues?.get(1).orEmpty()
+            return ToolCall("fill_form", mapOf("values" to values))
+        }
+        Regex("^(?:tap|click|press|dabao)\\s+(?:on\\s+)?(.+)").find(t)?.let {
+            return ToolCall("tap", mapOf("label" to it.groupValues[1].clean()))
+        }
+        Regex("^(.+?)\\s+(?:par|pe)\\s+(?:tap|click|dabao)\\s*(?:karo|kar do)?$").find(t)?.let {
+            return ToolCall("tap", mapOf("label" to it.groupValues[1].clean()))
+        }
+        Regex("^(?:type|type karo|likh do)\\s+(.+)").find(t)?.let {
+            return ToolCall("type_text", mapOf("text" to it.groupValues[1].clean()))
+        }
+
         // ---- Screen control (AccessibilityService) -------------------------
         if (Regex("(back|peeche|wapas)\\s*(jao|chalo|karo)?").matches(t)) {
             return ToolCall("screen", mapOf("action" to "back"))
@@ -192,6 +255,9 @@ object LocalIntentParser {
         }
 
         // ---- Screen understanding ------------------------------------------
+        if (Regex("(ye|yeh|is|isme)\\s*(kya)\\s*(likha|likhaa|hai|likha hai)").containsMatchIn(t)) {
+            return ToolCall("read_screen")
+        }
         if (Regex("(isko|ise|iska|screen|page)\\s*(matlab|samjhao|samjha do|explain|summary|summarize)")
                 .containsMatchIn(t) ||
             Regex("(explain|samjhao)\\s*(this|ye|yeh|screen)").containsMatchIn(t)
@@ -328,6 +394,14 @@ object LocalIntentParser {
                 else -> "wifi"
             }
             return ToolCall("connectivity", mapOf("target" to target))
+        }
+
+        // ---- Saved voice shortcut by name (last resort) --------------------
+        Regex("^(.+?)\\s+mode\\s*(?:chalu|on|start|karo|activate|kar do)?$").find(t)?.let {
+            return ToolCall("macro_run", mapOf("name" to it.groupValues[1].clean() + " mode"))
+        }
+        Regex("^(?:run|chalao|chala do)\\s+(.+?)\\s*(?:shortcut|macro|routine)$").find(t)?.let {
+            return ToolCall("macro_run", mapOf("name" to it.groupValues[1].clean()))
         }
 
         return null
