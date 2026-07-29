@@ -1,7 +1,25 @@
+import java.io.File
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// Release signing: either a local keystore.properties file, or CI environment
+// variables (IRIS_KEYSTORE / IRIS_STORE_PASSWORD / IRIS_KEY_ALIAS / IRIS_KEY_PASSWORD).
+// When nothing is configured the release build falls back to debug signing so
+// the pipeline never breaks.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties()
+if (keystorePropsFile.exists()) {
+    FileInputStream(keystorePropsFile).use { keystoreProps.load(it) }
+}
+val releaseStorePath: String? =
+    keystoreProps.getProperty("storeFile") ?: System.getenv("IRIS_KEYSTORE")
+val hasReleaseKeystore: Boolean =
+    !releaseStorePath.isNullOrBlank() && File(releaseStorePath).exists()
 
 android {
     namespace = "com.irisx.ai"
@@ -16,13 +34,34 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseKeystore) {
+                storeFile = File(releaseStorePath!!)
+                storePassword = keystoreProps.getProperty("storePassword")
+                    ?: System.getenv("IRIS_STORE_PASSWORD")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                    ?: System.getenv("IRIS_KEY_ALIAS")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+                    ?: System.getenv("IRIS_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            // R8 is off for now: the tool registry and ML Kit paths need proper
+            // keep rules before shrinking can be trusted.
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             isMinifyEnabled = false

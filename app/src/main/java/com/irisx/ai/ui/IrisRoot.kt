@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Palette
@@ -45,6 +46,7 @@ import com.irisx.ai.ui.components.StatusDot
 import com.irisx.ai.ui.dashboard.DashboardScreen
 import com.irisx.ai.ui.device.DeviceScreen
 import com.irisx.ai.ui.gallery.GalleryScreen
+import com.irisx.ai.ui.macros.MacrosScreen
 import com.irisx.ai.ui.notes.NotesScreen
 import com.irisx.ai.ui.settings.SettingsScreen
 import com.irisx.ai.ui.theme.IrisColors
@@ -59,6 +61,7 @@ private val tabs = listOf(
     IrisTab("NOTES", "Notes", Icons.Filled.StickyNote2),
     IrisTab("GALLERY", "Gallery", Icons.Filled.Image),
     IrisTab("THEMES", "Themes", Icons.Filled.Palette),
+    IrisTab("MACROS", "Macros", Icons.Filled.Bolt),
     IrisTab("DEVICE", "Device", Icons.Filled.PhoneAndroid),
     IrisTab("SETTINGS", "Settings", Icons.Filled.Settings)
 )
@@ -106,6 +109,7 @@ fun IrisRoot(
                 "NOTES" -> NotesScreen()
                 "GALLERY" -> GalleryScreen()
                 "THEMES" -> ThemeScreen()
+                "MACROS" -> MacrosScreen()
                 "DEVICE" -> DeviceScreen()
                 "SETTINGS" -> SettingsScreen(isSystemActive = state.isConnected)
             }

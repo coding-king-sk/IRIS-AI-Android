@@ -1,5 +1,8 @@
 package com.irisx.ai.ui.macros
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -17,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.irisx.ai.core.agent.ToolCall
@@ -34,7 +39,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Manage voice shortcuts by hand: create, run, pin to the home screen, delete.
- * Everything is local (MacroStore JSON file).
+ * Everything stays local (MacroStore JSON file in app storage).
  */
 @Composable
 fun MacrosScreen() {
@@ -121,7 +126,7 @@ fun MacrosScreen() {
 
         if (macros.isEmpty()) {
             Text(
-                "Abhi koi shortcut nahi hai. Upar se banao ya bolo: shortcut banao office mode: wifi on, silent karo",
+                "Abhi koi shortcut nahi hai. Upar se banao, ya bolo: shortcut banao office mode: wifi on, silent karo",
                 style = MonoTiny,
                 color = IrisColors.Zinc600
             )
@@ -181,11 +186,10 @@ private fun Chip(label: String, onClick: () -> Unit) {
         style = MonoLabel,
         color = IrisColors.Accent,
         modifier = Modifier
-            .androidxChip(onClick)
+            .clip(RoundedCornerShape(12.dp))
+            .background(IrisColors.AccentSoft)
+            .border(1.dp, IrisColors.AccentBorder, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
     )
 }
-
-private fun Modifier.androidxChip(onClick: () -> Unit): Modifier = this
-    .then(Modifier)
-    .let { it }
-    .composedChip(onClick)
