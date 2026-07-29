@@ -9,6 +9,7 @@ import com.irisx.ai.core.tools.CalendarAddTool
 import com.irisx.ai.core.tools.CalendarTodayTool
 import com.irisx.ai.core.tools.CallTool
 import com.irisx.ai.core.tools.CameraTool
+import com.irisx.ai.core.tools.CameraVisionTool
 import com.irisx.ai.core.tools.ClockTool
 import com.irisx.ai.core.tools.ConnectivityTool
 import com.irisx.ai.core.tools.ContactInfoTool
@@ -28,6 +29,7 @@ import com.irisx.ai.core.tools.ReadNotificationsTool
 import com.irisx.ai.core.tools.ReadScreenTool
 import com.irisx.ai.core.tools.ReminderAddTool
 import com.irisx.ai.core.tools.ReminderListTool
+import com.irisx.ai.core.tools.ReplyScreenTool
 import com.irisx.ai.core.tools.ScreenActionTool
 import com.irisx.ai.core.tools.ScreenshotTool
 import com.irisx.ai.core.tools.SendPhotoTool
@@ -39,6 +41,8 @@ import com.irisx.ai.core.tools.TypeTextTool
 import com.irisx.ai.core.tools.UnitConvertTool
 import com.irisx.ai.core.tools.VoiceStatusTool
 import com.irisx.ai.core.tools.VolumeTool
+import com.irisx.ai.core.tools.VoskSetupTool
+import com.irisx.ai.core.tools.VoskStatusTool
 import com.irisx.ai.core.tools.WebSearchTool
 import com.irisx.ai.core.tools.WhatsAppSendTool
 import com.irisx.ai.core.tools.WhatsAppTool
@@ -53,6 +57,7 @@ class ToolRegistry(private val context: Context) {
         WhatsAppSendTool(),
         SendPhotoTool(),
         CameraTool(),
+        CameraVisionTool(),
         AlarmTool(),
         TimerTool(),
         ReminderAddTool(),
@@ -67,6 +72,7 @@ class ToolRegistry(private val context: Context) {
         ScreenActionTool(),
         ReadScreenTool(),
         ExplainScreenTool(),
+        ReplyScreenTool(),
         ScreenshotTool(),
         TapTool(),
         TypeTextTool(),
@@ -76,6 +82,8 @@ class ToolRegistry(private val context: Context) {
         BatteryTool(),
         ClockTool(),
         VoiceStatusTool(),
+        VoskSetupTool(),
+        VoskStatusTool(),
         SettingsPanelTool(),
         ConnectivityTool(),
         CalculatorTool(),

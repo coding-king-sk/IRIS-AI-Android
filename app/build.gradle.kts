@@ -50,8 +50,8 @@ android {
 
     buildTypes {
         release {
-            // R8 is off for now: the tool registry and ML Kit paths need proper
-            // keep rules before shrinking can be trusted.
+            // R8 is off for now: the tool registry, Vosk and ML Kit paths need
+            // proper keep rules before shrinking can be trusted.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -110,6 +110,17 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // On-device OCR (works offline once the model is downloaded by Play services)
+    // On-device OCR + image understanding (offline after first model fetch)
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.8")
+
+    // Camera vision
+    val cameraX = "1.3.4"
+    implementation("androidx.camera:camera-core:" + cameraX)
+    implementation("androidx.camera:camera-camera2:" + cameraX)
+    implementation("androidx.camera:camera-lifecycle:" + cameraX)
+    implementation("androidx.camera:camera-view:" + cameraX)
+
+    // True offline speech recognition (model downloaded once at runtime)
+    implementation("com.alphacephei:vosk-android:0.3.47")
 }
