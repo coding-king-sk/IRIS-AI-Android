@@ -5,9 +5,10 @@ import com.irisx.ai.data.SettingsStore
 
 /**
  * Decision order:
- *  1. Local Hinglish intent parser  (offline, instant)
- *  2. Local small-talk answers      (offline)
- *  3. Cloud LLM with tool calling   (only if online + key + not localOnly)
+ *  1. Fast-lane intents (songs, messages, apps)  (offline, instant)
+ *  2. Local Hinglish intent parser               (offline, instant)
+ *  3. Local small-talk answers                   (offline)
+ *  4. Cloud LLM with tool calling                (only if online + key + not localOnly)
  */
 class AgentEngine(
     context: Context,
@@ -19,18 +20,19 @@ class AgentEngine(
     private val llm = LlmClient(settings)
 
     suspend fun handle(utterance: String, online: Boolean): AgentReply {
-        // 1. Offline intents first — zero latency, zero network.
-        LocalIntentParser.parse(utterance)?.let { call ->
+        // 1 + 2. Offline intents first — zero latency, zero network.
+        val call = ExtraIntentParser.parse(utterance) ?: LocalIntentParser.parse(utterance)
+        if (call != null) {
             val result = registry.execute(call)
             return AgentReply(result.message, result.ok, call.name, usedCloud = false)
         }
 
-        // 2. Offline small talk.
+        // 3. Offline small talk.
         LocalSmallTalk.answer(utterance)?.let {
             return AgentReply(it, true, "small_talk", usedCloud = false)
         }
 
-        // 3. Cloud fallback.
+        // 4. Cloud fallback.
         val cloudAllowed = online && !settings.localOnly && settings.apiKey.isNotBlank()
         if (!cloudAllowed) {
             return AgentReply(
@@ -56,9 +58,12 @@ class AgentEngine(
     }
 
     private fun offlineFallbackText(): String = if (settings.hinglishMode) {
-        "Main offline mode me hoon. Device ke kaam bol do — jaise 'WhatsApp kholo', 'Mummy ko call karo', '7 baje ka alarm', 'torch on', 'note karo…'."
+        "Ye samajh nahi aaya. Aise bolo — 'YouTube kholo', 'koi bhi gana chalao', " +
+            "'Riya ko whatsapp karo ki main aa raha hoon', 'insta pe rahul ko message bhejo hi', " +
+            "'7 baje ka alarm', 'torch on'."
     } else {
-        "I'm running offline. Try a device command like 'open WhatsApp', 'call Mom', 'set alarm 7 am', 'torch on' or 'note down…'."
+        "I didn't catch that. Try 'open YouTube', 'play a song', " +
+            "'whatsapp Riya saying I'm coming', 'set alarm 7 am' or 'torch on'."
     }
 }
 
@@ -74,8 +79,8 @@ object LocalSmallTalk {
             t.contains("thank") || t.contains("shukriya") || t.contains("dhanyawad") ->
                 "Koi baat nahi. Aur kuch?"
             t.contains("what can you do") || t.contains("kya kar sakt") ->
-                "Calls, SMS, WhatsApp, apps, alarms, timers, torch, volume, media, notes, " +
-                    "notifications aur screen control — sab offline."
+                "Gane chalana, WhatsApp/Instagram message, calls, apps, alarms, timers, torch, " +
+                    "volume, notes, notifications aur screen control — zyada tar offline."
             Regex("^(bye|good night|shubh ratri|so ja)").containsMatchIn(t) ->
                 "Theek hai, main standby me jaa raha hoon."
             else -> null

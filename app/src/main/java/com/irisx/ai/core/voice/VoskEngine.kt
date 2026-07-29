@@ -19,7 +19,8 @@ import java.util.zip.ZipInputStream
  *
  * The acoustic model is ~40 MB, far too big to ship inside the APK, so it is
  * fetched once on demand and unpacked into app storage. After that the engine
- * needs no network at all — airplane mode, no Google app, still listens.
+ * needs no network at all — and, unlike the system recognizer, it keeps the mic
+ * open continuously without the constant beep / mic-icon flicker.
  */
 class VoskEngine(context: Context) {
 
@@ -71,6 +72,23 @@ class VoskEngine(context: Context) {
         onPartial: (String) -> Unit,
         onText: (String) -> Unit,
         onFail: (String) -> Unit
+    ): Boolean = startInternal(oneShot = true, onPartial = onPartial, onText = onText, onFail = onFail)
+
+    /**
+     * Keeps the mic open and reports every phrase it hears. Used by the wake
+     * word loop so there is no start/stop beep on every cycle.
+     */
+    fun startStream(
+        onPartial: (String) -> Unit,
+        onText: (String) -> Unit,
+        onFail: (String) -> Unit
+    ): Boolean = startInternal(oneShot = false, onPartial = onPartial, onText = onText, onFail = onFail)
+
+    private fun startInternal(
+        oneShot: Boolean,
+        onPartial: (String) -> Unit,
+        onText: (String) -> Unit,
+        onFail: (String) -> Unit
     ): Boolean {
         if (!isReady) return false
         val loaded = ensureModel() ?: return false
@@ -83,19 +101,21 @@ class VoskEngine(context: Context) {
 
             var finished = false
             val timeout = Runnable {
-                if (!finished) {
+                if (oneShot && !finished) {
                     finished = true
                     stop()
                     onFail("SILENCE")
                 }
             }
-            main.postDelayed(timeout, LISTEN_WINDOW_MS)
+            if (oneShot) main.postDelayed(timeout, LISTEN_WINDOW_MS)
 
-            fun done(text: String?, failure: String?) {
-                if (finished) return
-                finished = true
-                main.removeCallbacks(timeout)
-                stop()
+            fun deliver(text: String?, failure: String?) {
+                if (oneShot) {
+                    if (finished) return
+                    finished = true
+                    main.removeCallbacks(timeout)
+                    stop()
+                }
                 if (failure != null) onFail(failure) else onText(text.orEmpty())
             }
 
@@ -108,20 +128,25 @@ class VoskEngine(context: Context) {
 
                 override fun onResult(hypothesis: String?) {
                     val text = valueOf(hypothesis, "text")
-                    if (!text.isNullOrBlank()) done(text, null)
+                    if (!text.isNullOrBlank()) deliver(text, null)
                 }
 
                 override fun onFinalResult(hypothesis: String?) {
                     val text = valueOf(hypothesis, "text")
-                    if (text.isNullOrBlank()) done(null, "NOTHING HEARD") else done(text, null)
+                    if (!text.isNullOrBlank()) {
+                        deliver(text, null)
+                    } else if (oneShot) {
+                        deliver(null, "NOTHING HEARD")
+                    }
                 }
 
                 override fun onError(exception: Exception?) {
-                    done(null, "VOSK ERROR")
+                    if (!oneShot) stop()
+                    deliver(null, "VOSK ERROR")
                 }
 
                 override fun onTimeout() {
-                    done(null, "SILENCE")
+                    if (oneShot) deliver(null, "SILENCE")
                 }
             })
             true
