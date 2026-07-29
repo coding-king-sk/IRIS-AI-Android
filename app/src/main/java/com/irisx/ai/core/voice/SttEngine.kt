@@ -10,9 +10,15 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import com.irisx.ai.data.SettingsStore
 
 /**
- * Speech-to-text using Android's on-device recognizer.
+ * Speech-to-text.
+ *
+ * Two engines, in order:
+ *  1. Vosk — true offline, no Google app, no network. Used whenever the model
+ *     has been downloaded and the offline engine is switched on.
+ *  2. Android's SpeechRecognizer — the fallback.
  *
  * Hard-won details this class handles, because they were the reason the mic
  * felt "dead" earlier:
@@ -30,6 +36,8 @@ class SttEngine(context: Context) {
 
     private val appContext = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
+    private val settings = SettingsStore(appContext)
+    private val vosk by lazy { VoskEngine(appContext) }
     private var recognizer: SpeechRecognizer? = null
     private var busy = false
     private var watchdog: Runnable? = null
@@ -47,6 +55,10 @@ class SttEngine(context: Context) {
     val recognizerAvailable: Boolean
         get() = SpeechRecognizer.isRecognitionAvailable(appContext)
 
+    /** True when the bundled offline engine is installed and switched on. */
+    val voskActive: Boolean
+        get() = settings.voskEnabled && vosk.isReady
+
     fun listen(
         preferOffline: Boolean = true,
         languageTag: String = "en-IN",
@@ -58,6 +70,29 @@ class SttEngine(context: Context) {
             onError("MIC PERMISSION")
             return
         }
+
+        // Preferred path: fully offline Vosk.
+        if (voskActive) {
+            if (busy) cancel()
+            val started = vosk.listenOnce(
+                onPartial = { text -> main.post { onPartial(text) } },
+                onText = { text ->
+                    main.post {
+                        onAmplitude?.invoke(0f)
+                        if (text.isBlank()) onError("NOTHING HEARD") else onResult(text)
+                    }
+                },
+                onFail = { label ->
+                    main.post {
+                        onAmplitude?.invoke(0f)
+                        onError(label)
+                    }
+                }
+            )
+            if (started) return
+            // Vosk could not start (mic busy, bad model) — fall through.
+        }
+
         if (!recognizerAvailable) {
             onError("NO RECOGNIZER")
             return
@@ -159,12 +194,14 @@ class SttEngine(context: Context) {
     fun cancel() {
         busy = false
         clearWatchdog()
+        runCatching { vosk.stop() }
         main.post { runCatching { recognizer?.cancel() } }
     }
 
     fun destroy() {
         busy = false
         clearWatchdog()
+        runCatching { vosk.stop() }
         main.post {
             runCatching { recognizer?.destroy() }
             recognizer = null
