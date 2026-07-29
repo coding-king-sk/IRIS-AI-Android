@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- Camera vision ("ye kya hai?") -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <!-- Always-on assistant service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
@@ -39,10 +42,13 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-    <!-- Online LLM fallback only; app UI + local tools work offline -->
+    <!-- Online LLM fallback + one-time offline voice model download -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.camera.flash"
         android:required="false" />
@@ -87,7 +93,17 @@
                 <action android:name="android.intent.action.ASSIST" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.vision.CameraVisionActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Iris" />
 
         <service
             android:name=".service.IrisForegroundService"

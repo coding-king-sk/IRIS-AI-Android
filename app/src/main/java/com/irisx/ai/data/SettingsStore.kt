@@ -31,6 +31,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_OFFLINE_FIRST, true)
         set(value) = prefs.edit().putBoolean(KEY_OFFLINE_FIRST, value).apply()
 
+    /** Use the bundled Vosk engine (true offline, no Google app needed). */
+    var voskEnabled: Boolean
+        get() = prefs.getBoolean(KEY_VOSK, false)
+        set(value) = prefs.edit().putBoolean(KEY_VOSK, value).apply()
+
     /** Hard airplane-mode for the brain: never call the cloud. */
     var localOnly: Boolean
         get() = prefs.getBoolean(KEY_LOCAL_ONLY, false)
@@ -92,6 +97,7 @@ class SettingsStore(context: Context) {
         const val KEY_URL = "base_url"
         const val KEY_MODEL = "model"
         const val KEY_OFFLINE_FIRST = "offline_first"
+        const val KEY_VOSK = "vosk_enabled"
         const val KEY_LOCAL_ONLY = "local_only"
         const val KEY_TTS = "tts_enabled"
         const val KEY_HINGLISH = "hinglish"
