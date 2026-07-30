@@ -6,16 +6,18 @@ import android.os.Looper
 import com.irisx.ai.data.SettingsStore
 
 /**
- * Wake-word loop ("hey iris" by default).
+ * Wake-word loop.
  *
- * Two very different modes:
- *  - **Vosk stream (preferred):** the mic stays open in one continuous session,
- *    so there is no beep and no mic-icon blinking, and nothing is missed between
- *    cycles.
- *  - **System recognizer (fallback):** Android only gives short sessions, so the
- *    loop has to restart — that is what made the mic flash on/off and swallow
- *    words. Here it is paced slowly and it gives up with a clear message instead
- *    of hot-looping forever.
+ * Three modes, best first:
+ *  - **openWakeWord (neural, preferred):** a few MB of ONNX models score the mic
+ *    stream continuously. No beep, no mic blinking, no language pack, and it
+ *    behaves exactly the same online and offline.
+ *  - **Vosk stream:** full offline recognizer, also continuous, but a 40 MB
+ *    model and much heavier than a wake-word classifier needs to be.
+ *  - **System recognizer (last resort):** Android only gives short sessions, so
+ *    the loop has to restart — that is what made the mic flash on/off and
+ *    swallow words. Here it is paced slowly and gives up with a clear message
+ *    instead of hot-looping forever.
  */
 class WakeWordEngine(
     context: Context,
@@ -24,10 +26,12 @@ class WakeWordEngine(
 
     private val stt = SttEngine(context)
     private val vosk = VoskEngine(context)
+    private val oww = OpenWakeWord(context)
     private val main = Handler(Looper.getMainLooper())
     private var running = false
     private var paused = false
     private var streaming = false
+    private var neural = false
     private var failures = 0
     private var onDetected: (() -> Unit)? = null
     private var onStatus: ((String) -> Unit)? = null
@@ -35,9 +39,15 @@ class WakeWordEngine(
 
     val micGranted: Boolean get() = stt.micGranted
 
-    /** True when the smooth, no-beep offline listener is in use. */
+    /** True when a smooth, no-beep listener is available. */
     val continuousOffline: Boolean
-        get() = settings.voskEnabled && vosk.isReady
+        get() = (settings.owwEnabled && oww.isReady) || (settings.voskEnabled && vosk.isReady)
+
+    /** True when the neural detector is the one in use. */
+    val neuralActive: Boolean get() = neural
+
+    /** The phrase the user should say for the neural model in use. */
+    val neuralPhrase: String get() = oww.spokenPhrase
 
     fun start(onDetected: () -> Unit, onStatus: (String) -> Unit = {}) {
         this.onDetected = onDetected
@@ -51,6 +61,7 @@ class WakeWordEngine(
         paused = false
         failures = 0
 
+        if (startNeural()) return
         if (startStream()) return
 
         if (!stt.recognizerAvailable) {
@@ -58,13 +69,14 @@ class WakeWordEngine(
             running = false
             return
         }
-        onStatus("WAKE WORD ON (offline model se behtar chalega)")
+        onStatus("WAKE WORD ON (bolo 'neural wake word setup karo' — bina beep chalega)")
         schedule(300L)
     }
 
     fun pause() {
         paused = true
         main.removeCallbacks(pending)
+        stopNeural()
         stopStream()
         stt.cancel()
     }
@@ -73,6 +85,7 @@ class WakeWordEngine(
         if (!running) return
         paused = false
         failures = 0
+        if (startNeural()) return
         if (startStream()) return
         schedule(600L)
     }
@@ -81,14 +94,45 @@ class WakeWordEngine(
         running = false
         paused = false
         main.removeCallbacks(pending)
+        stopNeural()
         stopStream()
         stt.destroy()
+    }
+
+    // ---- openWakeWord neural mode -----------------------------------------
+
+    private fun startNeural(): Boolean {
+        if (neural) return true
+        if (!settings.owwEnabled || !oww.isReady) return false
+        val ok = oww.start(
+            onDetected = { _ -> main.post { trigger() } },
+            onError = { reason ->
+                main.post {
+                    neural = false
+                    onStatus?.invoke("NEURAL WAKE RUKA \u00b7 " + reason)
+                    if (!startStream()) schedule(1500L)
+                }
+            }
+        )
+        neural = ok
+        if (ok) {
+            onStatus?.invoke("SUN RAHA HOON \u00b7 bolo \"" + oww.spokenPhrase + "\"")
+        }
+        return ok
+    }
+
+    private fun stopNeural() {
+        if (neural) {
+            neural = false
+            runCatching { oww.stop() }
+        }
     }
 
     // ---- Vosk continuous mode ---------------------------------------------
 
     private fun startStream(): Boolean {
-        if (!continuousOffline || streaming) return streaming
+        if (streaming) return true
+        if (!settings.voskEnabled || !vosk.isReady) return false
         val started = vosk.startStream(
             onPartial = { heard -> if (matches(heard)) trigger() },
             onText = { heard -> if (matches(heard)) trigger() },
@@ -122,12 +166,13 @@ class WakeWordEngine(
 
     private fun schedule(delayMs: Long) {
         main.removeCallbacks(pending)
-        if (!running || paused || streaming) return
+        if (!running || paused || streaming || neural) return
         main.postDelayed(pending, delayMs)
     }
 
     private fun cycle() {
         if (!running || paused) return
+        if (startNeural()) return
         if (startStream()) return
         onStatus?.invoke("WAKE WORD SUN RAHA HOON")
         stt.listen(
@@ -151,13 +196,13 @@ class WakeWordEngine(
                     }
                     if (failures >= MAX_FAILURES) {
                         onStatus?.invoke(
-                            "WAKE WORD BAND (" + reason + ") — bolo 'offline voice setup karo', " +
+                            "WAKE WORD BAND (" + reason + ") — bolo 'neural wake word setup karo', " +
                                 "phir bina beep ke chalega"
                         )
                         running = false
                         return@listen
                     }
-                    onStatus?.invoke("DOBARA KOSHISH · " + reason)
+                    onStatus?.invoke("DOBARA KOSHISH \u00b7 " + reason)
                     schedule(BACKOFF_MS * failures)
                 }
             }

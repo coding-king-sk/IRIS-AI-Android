@@ -1,8 +1,8 @@
 package com.irisx.ai.core.agent
 
 /**
- * Fast lane for the commands people actually use first: play a song, open a
- * video, WhatsApp / Instagram / Telegram messages. This runs BEFORE
+ * Fast lane for the commands people actually use first: wake-word setup, play a
+ * song, open a video, WhatsApp / Instagram / Telegram messages. This runs BEFORE
  * LocalIntentParser so those phrases never fall through to a generic route.
  *
  * Every pattern here is deliberately narrow (it needs a "ko", a song word or an
@@ -18,6 +18,17 @@ object ExtraIntentParser {
             .removeSuffix("?")
             .trim()
         if (t.isBlank()) return null
+
+        // ---- Wake word engine ----------------------------------------------
+        if (Regex("""wake\s*word\s*(?:ka\s*)?(?:status|haal|kaisa)""").containsMatchIn(t)) {
+            return ToolCall("neural_wake_status", emptyMap())
+        }
+        if (Regex("""(?:neural|openwakeword|open wake word|smart|new)\s*wake\s*word""").containsMatchIn(t) ||
+            Regex("""wake\s*word\s*(?:model\s*)?(?:setup|install|download|chalu|on|enable|theek)""").containsMatchIn(t)
+        ) {
+            val model = OpenWakeWordPhrases.firstOrNull { t.contains(it) }.orEmpty()
+            return ToolCall("neural_wake_setup", mapOf("model" to model))
+        }
 
         // ---- Instagram DM --------------------------------------------------
         Regex("""^(?:instagram|insta|ig)\s*(?:pe|par|me|mein)?\s*(.+?)\s+ko\s*(?:message|msg|dm|likho|bolo)?\s*(?:bhejo|bhej do|karo|kar do|do)?\s*(?:ki|that|bolo)?\s*(.*)$""")
@@ -83,6 +94,11 @@ object ExtraIntentParser {
 
         return null
     }
+
+    /** Wake phrases the pretrained openWakeWord models understand. */
+    private val OpenWakeWordPhrases = listOf(
+        "hey jarvis", "jarvis", "alexa", "hey mycroft", "mycroft", "hey rhasspy", "rhasspy"
+    )
 
     private fun instagram(user: String, message: String): ToolCall = ToolCall(
         "instagram_send",

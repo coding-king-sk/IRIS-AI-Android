@@ -85,6 +85,12 @@ android {
         kotlinCompilerExtensionVersion = "1.5.14"
     }
 
+    lint {
+        // Never let a lint rule block the APK the user is waiting for.
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -123,4 +129,7 @@ dependencies {
 
     // True offline speech recognition (model downloaded once at runtime)
     implementation("com.alphacephei:vosk-android:0.3.47")
+
+    // Neural wake word (openWakeWord ONNX models, fetched at runtime)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.1")
 }

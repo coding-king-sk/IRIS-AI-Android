@@ -36,6 +36,19 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_VOSK, false)
         set(value) = prefs.edit().putBoolean(KEY_VOSK, value).apply()
 
+    /**
+     * Neural wake word (openWakeWord / ONNX). Fully on-device, so it behaves
+     * identically whether the phone is online or offline.
+     */
+    var owwEnabled: Boolean
+        get() = prefs.getBoolean(KEY_OWW, false)
+        set(value) = prefs.edit().putBoolean(KEY_OWW, value).apply()
+
+    /** File name (without extension) of the openWakeWord model in use. */
+    var wakeModel: String
+        get() = prefs.getString(KEY_OWW_MODEL, "hey_jarvis_v0.1") ?: "hey_jarvis_v0.1"
+        set(value) = prefs.edit().putString(KEY_OWW_MODEL, value.trim()).apply()
+
     /** Hard airplane-mode for the brain: never call the cloud. */
     var localOnly: Boolean
         get() = prefs.getBoolean(KEY_LOCAL_ONLY, false)
@@ -98,6 +111,8 @@ class SettingsStore(context: Context) {
         const val KEY_MODEL = "model"
         const val KEY_OFFLINE_FIRST = "offline_first"
         const val KEY_VOSK = "vosk_enabled"
+        const val KEY_OWW = "oww_enabled"
+        const val KEY_OWW_MODEL = "oww_model"
         const val KEY_LOCAL_ONLY = "local_only"
         const val KEY_TTS = "tts_enabled"
         const val KEY_HINGLISH = "hinglish"
