@@ -194,7 +194,10 @@ fun SettingsScreen(isSystemActive: Boolean) {
                 store.owwEnabled = it
                 if (it) {
                     voiceNote = "Wake word model taiyaar ho raha hai\u2026"
-                    thread { OpenWakeWord.download(context, store.wakeModel) }
+                    thread {
+                        val engine = OpenWakeWord(context)
+                        if (!engine.isReady) engine.downloadModels()
+                    }
                 }
             }
             FieldRow(label = "WAKE MODEL", value = wakeModel) {
