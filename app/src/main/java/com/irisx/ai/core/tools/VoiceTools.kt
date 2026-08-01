@@ -14,11 +14,13 @@ import kotlin.concurrent.thread
 class NeuralVoiceSetupTool : IrisTool {
     override val name = "neural_voice_setup"
     override val description = "Neural (AI) voice model download karke IRIS ki apni awaaz chalu karo"
-    override val params = listOf("action")
+    override val params: Map<String, String> = mapOf(
+        "action" to "on | off | delete (khali chhodo to install kar dega)"
+    )
 
     override fun run(context: Context, args: Map<String, String>): ToolResult {
         val store = SettingsStore(context)
-        val action = (args["action"] ?: "").lowercase()
+        val action = (args["action"] ?: args["query"] ?: "").lowercase()
         if (action.contains("off") || action.contains("band") || action.contains("disable")) {
             store.nttsEnabled = false
             NeuralTts.stop()
@@ -54,7 +56,7 @@ class NeuralVoiceSetupTool : IrisTool {
 class NeuralVoiceStatusTool : IrisTool {
     override val name = "neural_voice_status"
     override val description = "Neural voice model ka status batao"
-    override val params = emptyList<String>()
+    override val params: Map<String, String> = emptyMap()
 
     override fun run(context: Context, args: Map<String, String>): ToolResult {
         val store = SettingsStore(context)
