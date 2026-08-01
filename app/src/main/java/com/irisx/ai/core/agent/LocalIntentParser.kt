@@ -182,7 +182,7 @@ object LocalIntentParser {
             return ToolCall("brightness", mapOf("percent" to level))
         }
 
-        // ---- Volume & media ------------------------------------------------
+        // ---- Volume --------------------------------------------------------
         if (t.contains("volume") || t.contains("awaaz") || t.contains("awaz")) {
             val dir = when {
                 t.contains("up") || t.contains("badha") || t.contains("tez") ||
@@ -193,7 +193,17 @@ object LocalIntentParser {
             }
             return ToolCall("volume", mapOf("direction" to dir))
         }
-        if (Regex("(music|song|gana|gaana|media|track)").containsMatchIn(t)) {
+
+        // ---- Media transport ------------------------------------------------
+        // NOTE: this used to fire on ANY sentence containing "song" / "gana",
+        // which hijacked "youtube pe X search karo" into a useless "Media:
+        // play." It now needs a real transport verb AND no app name (app
+        // routes are handled earlier by ExtraIntentParser).
+        if (Regex("(music|song|gana|gaana|media|track)").containsMatchIn(t) &&
+            !Regex("youtube|yt|spotify|instagram|insta|whatsapp|telegram").containsMatchIn(t) &&
+            Regex("\\b(pause|rok|roko|band|next|aage|agla|badlo|previous|peeche|pichla|resume|chalu)\\b")
+                .containsMatchIn(t)
+        ) {
             val action = when {
                 t.contains("pause") || t.contains("rok") || t.contains("band") -> "pause"
                 t.contains("next") || t.contains("aage") || t.contains("agla") ||
