@@ -8,8 +8,13 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.irisx.ai.MainActivity
 import com.irisx.ai.R
+import com.irisx.ai.service.IrisForegroundService
 
-/** Home screen widget: tap to jump straight into the IRIS command deck. */
+/**
+ * Home screen widget.
+ *  - Tap the card  -> open the IRIS command deck.
+ *  - Tap the mic   -> talk straight away, without opening the app.
+ */
 class IrisWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
@@ -19,16 +24,27 @@ class IrisWidgetProvider : AppWidgetProvider() {
     ) {
         appWidgetIds.forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.widget_iris)
-            val intent = Intent(context, MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val pending = PendingIntent.getActivity(
+
+            val openIntent = Intent(context, MainActivity::class.java)
+            openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val open = PendingIntent.getActivity(
                 context,
                 id,
-                intent,
+                openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_root, pending)
-            views.setOnClickPendingIntent(R.id.widget_action, pending)
+
+            val listenIntent = Intent(context, IrisForegroundService::class.java)
+                .setAction(IrisForegroundService.ACTION_LISTEN)
+            val listen = PendingIntent.getForegroundService(
+                context,
+                1000 + id,
+                listenIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            views.setOnClickPendingIntent(R.id.widget_root, open)
+            views.setOnClickPendingIntent(R.id.widget_action, listen)
             appWidgetManager.updateAppWidget(id, views)
         }
     }

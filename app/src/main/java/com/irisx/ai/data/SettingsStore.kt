@@ -49,6 +49,14 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(KEY_OWW_MODEL, "hey_jarvis_v0.1") ?: "hey_jarvis_v0.1"
         set(value) = prefs.edit().putString(KEY_OWW_MODEL, value.trim()).apply()
 
+    /**
+     * Live-call style conversation: after every answer the mic reopens on its
+     * own, and the wake word can cut IRIS off mid-sentence.
+     */
+    var liveMode: Boolean
+        get() = prefs.getBoolean(KEY_LIVE, true)
+        set(value) = prefs.edit().putBoolean(KEY_LIVE, value).apply()
+
     /** Hard airplane-mode for the brain: never call the cloud. */
     var localOnly: Boolean
         get() = prefs.getBoolean(KEY_LOCAL_ONLY, false)
@@ -113,6 +121,7 @@ class SettingsStore(context: Context) {
         const val KEY_VOSK = "vosk_enabled"
         const val KEY_OWW = "oww_enabled"
         const val KEY_OWW_MODEL = "oww_model"
+        const val KEY_LIVE = "live_mode"
         const val KEY_LOCAL_ONLY = "local_only"
         const val KEY_TTS = "tts_enabled"
         const val KEY_HINGLISH = "hinglish"

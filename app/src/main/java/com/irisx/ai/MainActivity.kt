@@ -94,12 +94,17 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.POST_NOTIFICATIONS,
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.CAMERA
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             needed += Manifest.permission.READ_MEDIA_IMAGES
         } else {
             needed += Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            needed += Manifest.permission.BLUETOOTH_CONNECT
         }
         permissionLauncher.launch(needed.toTypedArray())
     }

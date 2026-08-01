@@ -10,22 +10,30 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.irisx.ai.ui.theme.IrisColors
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.sin
 
 /**
  * Native replacement for the desktop three.js `AICoreSphere`.
- * Rendered fully on-device with Compose Canvas — no WebGL, no network.
+ *
+ * The ring of bars around the core is a real waveform: every new mic amplitude
+ * value is pushed into a rolling history, so the orb physically moves with the
+ * user's voice instead of just pulsing on a timer.
  */
 @Composable
 fun AICoreSphere(
@@ -57,6 +65,22 @@ fun AICoreSphere(
         ),
         label = "pulse"
     )
+
+    // Rolling waveform history — one slot per bar around the orb.
+    val wave = remember {
+        mutableStateListOf<Float>().also { list -> repeat(BARS) { list.add(0f) } }
+    }
+    LaunchedEffect(amplitude, isSpeaking, isListening) {
+        val level = when {
+            !isConnected -> 0f
+            isListening -> amplitude.coerceIn(0f, 1f)
+            // While IRIS talks there is no mic level, so animate a gentle voice.
+            isSpeaking -> 0.25f + amplitude.coerceIn(0f, 1f) * 0.5f
+            else -> amplitude.coerceIn(0f, 1f) * 0.3f
+        }
+        if (wave.isNotEmpty()) wave.removeAt(0)
+        wave.add(level)
+    }
 
     val accent: Color = when {
         !isConnected -> IrisColors.Zinc600
@@ -117,12 +141,34 @@ fun AICoreSphere(
                 )
             }
 
+            // Real-time voice waveform ring
+            val ringRadius = r * 1.16f
+            for (i in 0 until BARS) {
+                val level = wave.getOrElse(i) { 0f }
+                val idle = 0.05f + 0.03f * sin((i * 0.7f + spin / 20f).toDouble()).toFloat()
+                val height = r * (0.10f + max(level, idle) * 0.75f)
+                val angle = ((i.toFloat() / BARS) * 360f - 90f) * (PI / 180.0)
+                val ca = cos(angle).toFloat()
+                val sa = sin(angle).toFloat()
+                val startX = cx + ca * ringRadius
+                val startY = cy + sa * ringRadius
+                val endX = cx + ca * (ringRadius + height)
+                val endY = cy + sa * (ringRadius + height)
+                drawLine(
+                    color = accent.copy(alpha = 0.35f + max(level, idle) * 0.6f),
+                    start = Offset(startX, startY),
+                    end = Offset(endX, endY),
+                    strokeWidth = 3f,
+                    cap = StrokeCap.Round
+                )
+            }
+
             // Orbiting particles
             val particles = 46
             for (i in 0 until particles) {
                 val angle = ((i.toFloat() / particles) * 360f + spin) * (PI / 180.0)
                 val wobble = 1f + 0.14f * sin((i + spin / 12f).toDouble()).toFloat()
-                val pr = r * 1.22f * wobble
+                val pr = r * 1.42f * wobble
                 val px = cx + cos(angle).toFloat() * pr
                 val py = cy + sin(angle).toFloat() * pr * 0.72f
                 drawCircle(
@@ -132,11 +178,11 @@ fun AICoreSphere(
                 )
             }
 
-            // Live amplitude ring while listening / speaking
+            // Live amplitude halo while listening / speaking
             if (isConnected && (isSpeaking || isListening)) {
                 drawCircle(
                     color = accent.copy(alpha = 0.30f),
-                    radius = r * (1.45f + amplitude * 0.5f),
+                    radius = r * (1.75f + amplitude * 0.5f),
                     center = Offset(cx, cy),
                     style = Stroke(width = 2f)
                 )
@@ -144,3 +190,5 @@ fun AICoreSphere(
         }
     }
 }
+
+private const val BARS = 64

@@ -40,16 +40,17 @@ data class IrisUiState(
     val engineMode: String = "LOCAL",
     val lastTool: String? = null,
     val continuous: Boolean = false,
+    val liveMode: Boolean = false,
     val transcript: List<ChatLine> = emptyList()
 )
 
 /**
  * Owns the whole voice loop:
- *   wake word (offline) -> STT (offline-first) -> agent (local intents, cloud
- *   fallback) -> tool execution (offline) -> TTS (on-device).
+ *   wake word -> STT -> agent (local intents, cloud fallback) -> tools -> TTS.
  *
- * With continuous mode on, the mic reopens right after IRIS finishes speaking,
- * so a conversation can continue without repeating the wake word.
+ * Live mode makes it feel like a call: the mic reopens after every answer with
+ * no wake word, and the wake detector stays armed while IRIS is talking so the
+ * user can cut in mid-sentence.
  */
 class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -67,7 +68,10 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
     private var followUps = 0
 
     private val _state = MutableStateFlow(
-        IrisUiState(transcript = history.recent().map { ChatLine(Role.SYSTEM, it) })
+        IrisUiState(
+            liveMode = settings.liveMode,
+            transcript = history.recent().map { ChatLine(Role.SYSTEM, it) }
+        )
     )
     val state: StateFlow<IrisUiState> = _state.asStateFlow()
 
@@ -83,7 +87,8 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         stt.onAmplitude = { level ->
-            _state.update { it.copy(amplitude = level) }
+            // Smooth the mic level a little so the orb waveform flows.
+            _state.update { it.copy(amplitude = it.amplitude * 0.55f + level * 0.45f) }
         }
     }
 
@@ -91,15 +96,33 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.isConnected) shutdown() else boot()
     }
 
+    /** Live-call style conversation on/off. */
+    fun toggleLive() {
+        val live = !_state.value.liveMode
+        settings.liveMode = live
+        _state.update { it.copy(liveMode = live, status = if (live) "LIVE MODE" else "NORMAL MODE") }
+        if (live && !_state.value.isConnected) boot()
+    }
+
     private fun boot() {
         _state.update { it.copy(isConnected = true, status = "CORE ONLINE") }
         if (settings.haptics) feedback.doubleTick()
-        say("IRIS online. Bolo, main sun raha hoon.")
+        say(LocalGreeting.pick())
         IrisForegroundService.start(getApplication())
         wakeWord.start(
-            onDetected = { if (!_state.value.isMuted) startListening(false) },
+            onDetected = { onWake() },
             onStatus = { s -> _state.update { it.copy(status = s) } }
         )
+    }
+
+    /** Wake word can also arrive while IRIS is mid-sentence — that is barge-in. */
+    private fun onWake() {
+        if (_state.value.isMuted) return
+        if (_state.value.isSpeaking) {
+            tts.stop()
+            _state.update { it.copy(isSpeaking = false) }
+        }
+        startListening(false)
     }
 
     private fun shutdown() {
@@ -136,7 +159,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
             wakeWord.stop()
         } else if (_state.value.isConnected) {
             wakeWord.start(
-                onDetected = { startListening(false) },
+                onDetected = { onWake() },
                 onStatus = { s -> _state.update { it.copy(status = s) } }
             )
         }
@@ -163,12 +186,16 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         if (!fromFollowUp) followUps = 0
         wakeWord.pause()
         if (settings.haptics) feedback.tick()
-        if (settings.soundCues) feedback.wakeCue()
+        if (settings.soundCues && !fromFollowUp) feedback.wakeCue()
         _state.update {
             it.copy(
                 isListening = true,
                 continuous = fromFollowUp,
-                status = if (fromFollowUp) "FOLLOW UP" else "LISTENING"
+                status = when {
+                    _state.value.liveMode -> "LIVE \u00b7 BOLO"
+                    fromFollowUp -> "FOLLOW UP"
+                    else -> "LISTENING"
+                }
             )
         }
         stt.listen(
@@ -206,11 +233,12 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
             if (settings.soundCues) {
                 if (reply.ok) feedback.doneCue() else feedback.errorCue()
             }
+            val live = _state.value.liveMode
             val shouldFollowUp = spoken &&
-                settings.continuousMode &&
+                (live || settings.continuousMode) &&
                 _state.value.isConnected &&
                 !_state.value.isMuted &&
-                followUps < MAX_FOLLOW_UPS
+                (live || followUps < MAX_FOLLOW_UPS)
             say(reply.text) {
                 if (shouldFollowUp) {
                     followUps++
@@ -255,4 +283,15 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val MAX_FOLLOW_UPS = 3
     }
+}
+
+/** Casual openers so IRIS does not greet the same way every single time. */
+private object LocalGreeting {
+    private val lines = listOf(
+        "Haan bhai, bolo. Main sun raha hoon.",
+        "IRIS online. Kya karna hai?",
+        "Aa gaya main. Bolo kya kaam hai?"
+    )
+
+    fun pick(): String = lines.random()
 }

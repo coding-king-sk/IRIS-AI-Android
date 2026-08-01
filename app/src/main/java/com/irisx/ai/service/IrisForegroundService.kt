@@ -26,7 +26,12 @@ import kotlinx.coroutines.launch
 
 /**
  * Always-on layer: keeps the wake word alive when the UI is closed and runs the
- * full offline pipeline (wake word -> STT -> agent -> TTS) in the background.
+ * full pipeline (wake word -> STT -> agent -> TTS) in the background.
+ *
+ * It also exposes a "listen now" entry point so the Quick Settings tile, the
+ * home-screen widget and the notification button can open the mic without ever
+ * opening the app. In live mode the mic reopens after every answer, so a
+ * conversation keeps going like a phone call.
  */
 class IrisForegroundService : Service() {
 
@@ -50,47 +55,76 @@ class IrisForegroundService : Service() {
         network = NetworkMonitor(this)
         wakeWord = WakeWordEngine(this, settings)
 
-        startForeground(NOTIF_ID, buildNotification("Standby · wake word active"))
+        startForeground(NOTIF_ID, buildNotification("Standby \u00b7 wake word active"))
         startPipeline()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_LISTEN) listenNow()
+        return START_STICKY
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** Swiping the app away should not kill the assistant. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        runCatching {
+            val restart = Intent(applicationContext, IrisForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                applicationContext.startForegroundService(restart)
+            } else {
+                applicationContext.startService(restart)
+            }
+        }
+        super.onTaskRemoved(rootIntent)
+    }
 
     private fun startPipeline() {
         wakeWord.start(
             onDetected = {
-                wakeWord.pause()
-                notify("Listening…")
-                stt.listen(
-                    preferOffline = settings.offlineFirst,
-                    onResult = { command -> handle(command) },
-                    onError = {
-                        notify("Standby · wake word active")
-                        wakeWord.resume()
-                    }
-                )
+                tts.stop()
+                listenNow()
             },
             onStatus = { /* status is surfaced through the notification only */ }
         )
     }
 
+    /** Open the mic straight away — tile, widget, notification or wake word. */
+    private fun listenNow() {
+        wakeWord.pause()
+        notify("Bolo\u2026 sun raha hoon")
+        stt.listen(
+            preferOffline = settings.offlineFirst,
+            onResult = { command -> handle(command) },
+            onError = {
+                notify("Standby \u00b7 wake word active")
+                wakeWord.resume()
+            }
+        )
+    }
+
     private fun handle(command: String) {
-        notify("Thinking…")
+        notify("Soch raha hoon\u2026")
         job?.cancel()
         job = scope.launch {
             val reply = agent.handle(command, network.online.value)
             history.log(command + " -> " + (reply.toolName ?: "chat"))
+            notify(reply.text.take(60))
             if (settings.ttsEnabled) {
-                tts.speak(reply.text, settings.speechRate) {
-                    notify("Standby · wake word active")
-                    wakeWord.resume()
-                }
+                tts.speak(reply.text, settings.speechRate) { afterReply() }
             } else {
-                notify("Standby · wake word active")
-                wakeWord.resume()
+                afterReply()
             }
+        }
+    }
+
+    /** Live mode keeps the conversation open instead of going back to standby. */
+    private fun afterReply() {
+        if (settings.liveMode) {
+            listenNow()
+        } else {
+            notify("Standby \u00b7 wake word active")
+            wakeWord.resume()
         }
     }
 
@@ -107,12 +141,19 @@ class IrisForegroundService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val listen = PendingIntent.getForegroundService(
+            this,
+            2,
+            Intent(this, IrisForegroundService::class.java).setAction(ACTION_LISTEN),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, IrisApp.CHANNEL_ID)
             .setContentTitle("IRIS")
             .setContentText(status)
             .setSmallIcon(R.drawable.iris_logo)
             .setOngoing(true)
             .setContentIntent(open)
+            .addAction(R.drawable.iris_logo, "Bolo", listen)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -128,9 +169,21 @@ class IrisForegroundService : Service() {
 
     companion object {
         private const val NOTIF_ID = 1001
+        const val ACTION_LISTEN = "com.irisx.ai.action.LISTEN_NOW"
 
         fun start(context: Context) {
             val intent = Intent(context, IrisForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        /** Open the mic without opening the app. */
+        fun listenNow(context: Context) {
+            val intent = Intent(context, IrisForegroundService::class.java)
+                .setAction(ACTION_LISTEN)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
