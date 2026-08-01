@@ -39,6 +39,7 @@ import com.irisx.ai.core.tools.PlayMusicTool
 import com.irisx.ai.core.tools.ReadNotesTool
 import com.irisx.ai.core.tools.ReadNotificationsTool
 import com.irisx.ai.core.tools.ReadScreenTool
+import com.irisx.ai.core.tools.ReelsTool
 import com.irisx.ai.core.tools.ReminderAddTool
 import com.irisx.ai.core.tools.ReminderListTool
 import com.irisx.ai.core.tools.ReplyScreenTool
@@ -78,6 +79,7 @@ class ToolRegistry(private val context: Context) {
         YoutubeSearchTool(),
         MusicControlTool(),
         NowPlayingTool(),
+        ReelsTool(),
         CameraTool(),
         CameraVisionTool(),
         AlarmTool(),
