@@ -1,12 +1,14 @@
 package com.irisx.ai.core.agent
 
 /**
- * Fast lane for the commands people actually use first: wake-word setup, play a
- * song, open a video, WhatsApp / Instagram / Telegram messages. This runs BEFORE
- * LocalIntentParser so those phrases never fall through to a generic route.
+ * Fast lane for the commands people actually use first: wake-word setup, the
+ * everyday toggles (silent / DND / bluetooth / hotspot), music transport,
+ * location sharing, songs, and WhatsApp / Instagram / Telegram messages.
  *
- * Every pattern here is deliberately narrow (it needs a "ko", a song word or an
- * app name) so plain commands like "camera kholo" still go to the old parser.
+ * This runs BEFORE LocalIntentParser so those phrases never fall through to a
+ * generic route. Every pattern is deliberately narrow (it needs a "ko", a song
+ * word or an app name) so plain commands like "camera kholo" still go to the
+ * old parser.
  */
 object ExtraIntentParser {
 
@@ -28,6 +30,60 @@ object ExtraIntentParser {
         ) {
             val model = OpenWakeWordPhrases.firstOrNull { t.contains(it) }.orEmpty()
             return ToolCall("neural_wake_setup", mapOf("model" to model))
+        }
+
+        // ---- Everyday toggles ----------------------------------------------
+        if (Regex("""(?:do not disturb|dnd|disturb)""").containsMatchIn(t)) {
+            val off = Regex("""\b(?:off|band|bandh|hata|hatao|nikal)""").containsMatchIn(t)
+            return ToolCall("dnd", mapOf("state" to if (off) "off" else "on"))
+        }
+        if (Regex("""^(?:phone\s*)?silent(?:\s*mode)?(?:\s*(?:on|karo|kar do|chalu|lagao|kardo))?$""").containsMatchIn(t)) {
+            return ToolCall("ringer", mapOf("mode" to "silent"))
+        }
+        if (Regex("""^(?:phone\s*)?vibrat\w*(?:\s*(?:pe|par|mode))?(?:\s*(?:on|karo|kar do|lagao|daal do))?$""").containsMatchIn(t)) {
+            return ToolCall("ringer", mapOf("mode" to "vibrate"))
+        }
+        if (Regex("""^(?:normal mode|general mode|silent (?:off|hatao|band karo)|awaaz (?:on|wapas)(?: karo)?|sound (?:on|wapas)(?: karo)?|ringtone on)$""").containsMatchIn(t)) {
+            return ToolCall("ringer", mapOf("mode" to "normal"))
+        }
+        if (Regex("""bluetooth""").containsMatchIn(t) &&
+            Regex("""\b(?:on|off|chalu|band|bandh|start|kar do|karo|lagao|hatao)\b""").containsMatchIn(t)
+        ) {
+            val off = Regex("""\b(?:off|band|bandh|hata|hatao)""").containsMatchIn(t)
+            return ToolCall("bluetooth", mapOf("state" to if (off) "off" else "on"))
+        }
+        if (Regex("""hotspot|tethering""").containsMatchIn(t)) {
+            val off = Regex("""\b(?:off|band|bandh|hata|hatao)""").containsMatchIn(t)
+            return ToolCall("hotspot", mapOf("state" to if (off) "off" else "on"))
+        }
+
+        // ---- Location sharing (before the generic "X ko ... bhejo" rules) ---
+        Regex("""^(?:meri\s*)?(?:live\s*)?location\s*(?:bhejo|bhej do|share karo|send karo|do)\s+(.+?)(?:\s+ko)?$""")
+            .find(t)?.let {
+                return ToolCall("location_share", mapOf("contact" to it.groupValues[1].trim()))
+            }
+        Regex("""^(.+?)\s+ko\s+(?:meri\s*)?(?:live\s*)?location\s*(?:bhejo|bhej do|share karo|send karo|do)$""")
+            .find(t)?.let {
+                return ToolCall("location_share", mapOf("contact" to it.groupValues[1].trim()))
+            }
+
+        // ---- Music transport (pause / next / previous / resume) ------------
+        if (Regex("""^(?:gana|gaana|song|music|track|isko|ise|iska)?\s*(?:ko\s*)?(?:rok do|roko|ruk jao|pause karo|pause kar do|pause|band karo|band kar do|bandh karo)$""").containsMatchIn(t)) {
+            return ToolCall("music_control", mapOf("action" to "pause", "app" to musicApp(t)))
+        }
+        if (Regex("""^(?:agla|next|aage wala|dusra)\s*(?:gana|gaana|song|track)?$|^(?:gana|gaana|song)\s*(?:badlo|badal do|change karo|skip karo)$|^skip$""").containsMatchIn(t)) {
+            return ToolCall("music_control", mapOf("action" to "next", "app" to musicApp(t)))
+        }
+        if (Regex("""^(?:pichla|previous|pehle wala|last)\s*(?:gana|gaana|song|track)?$|^(?:wapas|peeche) chalao$""").containsMatchIn(t)) {
+            return ToolCall("music_control", mapOf("action" to "previous", "app" to musicApp(t)))
+        }
+        if (Regex("""^(?:resume|resume karo|wapas chalu karo|chalu karo|play karo|chalao|continue karo)$""").containsMatchIn(t)) {
+            return ToolCall("music_control", mapOf("action" to "play", "app" to musicApp(t)))
+        }
+        if (Regex("""kya\s*(?:gana|gaana|song)?\s*(?:baj|chal)\s*rah""").containsMatchIn(t) ||
+            t == "now playing" || t == "ye kaunsa gana hai"
+        ) {
+            return ToolCall("now_playing", emptyMap())
         }
 
         // ---- Instagram DM --------------------------------------------------
@@ -99,6 +155,14 @@ object ExtraIntentParser {
     private val OpenWakeWordPhrases = listOf(
         "hey jarvis", "jarvis", "alexa", "hey mycroft", "mycroft", "hey rhasspy", "rhasspy"
     )
+
+    /** "spotify pe next gana" -> target that player specifically. */
+    private fun musicApp(t: String): String = when {
+        t.contains("spotify") -> "spotify"
+        t.contains("yt music") || t.contains("youtube music") -> "youtube music"
+        t.contains("youtube") -> "youtube"
+        else -> ""
+    }
 
     private fun instagram(user: String, message: String): ToolCall = ToolCall(
         "instagram_send",
