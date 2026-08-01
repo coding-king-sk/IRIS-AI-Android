@@ -10,6 +10,7 @@ import com.irisx.ai.core.voice.WakeWordEngine
 import com.irisx.ai.data.HistoryStore
 import com.irisx.ai.data.SettingsStore
 import com.irisx.ai.service.IrisForegroundService
+import com.irisx.ai.service.OverlayBubbleService
 import com.irisx.ai.util.Feedback
 import com.irisx.ai.util.NetworkMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +52,10 @@ data class IrisUiState(
  * Live mode makes it feel like a call: the mic reopens after every answer with
  * no wake word, and the wake detector stays armed while IRIS is talking so the
  * user can cut in mid-sentence.
+ *
+ * Everything the user says (live, word by word) and everything IRIS answers is
+ * also mirrored into the floating bubble as a subtitle, so it works while the
+ * app is in the background.
  */
 class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -92,6 +97,14 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Mirror text into the floating bubble (no-op when the bubble is off). */
+    private fun subtitle(text: String, holdMs: Long = 5000L) {
+        if (!settings.bubbleSubtitle) return
+        if (text.isBlank()) return
+        if (!OverlayBubbleService.running) return
+        runCatching { OverlayBubbleService.subtitle(text, holdMs) }
+    }
+
     fun toggleConnection() {
         if (_state.value.isConnected) shutdown() else boot()
     }
@@ -115,7 +128,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    /** Wake word can also arrive while IRIS is mid-sentence — that is barge-in. */
+    /** Wake word can also arrive while IRIS is mid-sentence - that is barge-in. */
     private fun onWake() {
         if (_state.value.isMuted) return
         if (_state.value.isSpeaking) {
@@ -169,7 +182,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(visionMode = mode) }
     }
 
-    /** Manual (typed) command — works with the mic fully disabled. */
+    /** Manual (typed) command - works with the mic fully disabled. */
     fun submitText(text: String) {
         if (text.isBlank()) return
         followUps = 0
@@ -198,8 +211,10 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
                 }
             )
         }
+        subtitle("Sun raha hoon\u2026", 3000L)
         stt.listen(
             preferOffline = settings.offlineFirst,
+            onPartial = { partial -> subtitle(partial, 3000L) },
             onResult = { text ->
                 _state.update { it.copy(isListening = false) }
                 handleUtterance(text, spoken = true)
@@ -209,6 +224,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(isListening = false, continuous = false, status = message)
                 }
                 followUps = 0
+                subtitle(message, 2500L)
                 if (settings.soundCues && !fromFollowUp) feedback.errorCue()
                 wakeWord.resume()
             }
@@ -217,10 +233,12 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun handleUtterance(text: String, spoken: Boolean) {
         append(ChatLine(Role.USER, text))
+        subtitle(text, 3000L)
         _state.update { it.copy(status = "THINKING") }
         viewModelScope.launch {
             val reply = agent.handle(text, _state.value.networkOnline)
             append(ChatLine(Role.IRIS, reply.text))
+            subtitle(reply.text, 6000L)
             history.log(text + " -> " + (reply.toolName ?: "chat"))
             _state.update {
                 it.copy(
