@@ -33,6 +33,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.irisx.ai.core.voice.NeuralTts
+import com.irisx.ai.core.voice.OpenWakeWord
 import com.irisx.ai.data.SettingsStore
 import com.irisx.ai.service.OverlayBubbleService
 import com.irisx.ai.ui.components.GlassPanel
@@ -40,6 +42,7 @@ import com.irisx.ai.ui.components.PanelHeader
 import com.irisx.ai.ui.theme.IrisColors
 import com.irisx.ai.ui.theme.MonoLabel
 import com.irisx.ai.ui.theme.MonoTiny
+import kotlin.concurrent.thread
 
 @Composable
 fun SettingsScreen(isSystemActive: Boolean) {
@@ -55,8 +58,15 @@ fun SettingsScreen(isSystemActive: Boolean) {
     var ttsEnabled by remember { mutableStateOf(store.ttsEnabled) }
     var hinglish by remember { mutableStateOf(store.hinglishMode) }
     var continuous by remember { mutableStateOf(store.continuousMode) }
+    var liveMode by remember { mutableStateOf(store.liveMode) }
     var haptics by remember { mutableStateOf(store.haptics) }
     var soundCues by remember { mutableStateOf(store.soundCues) }
+    var subtitle by remember { mutableStateOf(store.bubbleSubtitle) }
+    var neuralVoice by remember { mutableStateOf(store.nttsEnabled) }
+    var neuralWake by remember { mutableStateOf(store.owwEnabled) }
+    var wakeModel by remember { mutableStateOf(store.wakeModel) }
+    var voskOn by remember { mutableStateOf(store.voskEnabled) }
+    var voiceNote by remember { mutableStateOf("") }
     var bubbleOn by remember { mutableStateOf(false) }
 
     Column(
@@ -107,12 +117,16 @@ fun SettingsScreen(isSystemActive: Boolean) {
                 subtitle = "HANDS FREE FLOW",
                 trailing = {
                     Text(
-                        if (continuous) "CONTINUOUS" else "WAKE WORD ONLY",
+                        if (liveMode) "LIVE CALL" else if (continuous) "CONTINUOUS" else "WAKE WORD ONLY",
                         style = MonoTiny,
                         color = IrisColors.Accent
                     )
                 }
             )
+            ToggleRow("LIVE MODE (CALL JAISI BAAT)", liveMode) {
+                liveMode = it
+                store.liveMode = it
+            }
             ToggleRow("CONTINUOUS MODE (AUTO FOLLOW UP)", continuous) {
                 continuous = it
                 store.continuousMode = it
@@ -126,7 +140,77 @@ fun SettingsScreen(isSystemActive: Boolean) {
                 store.soundCues = it
             }
             Text(
-                "Continuous mode on hone par jawab ke baad mic 3 turn tak khula rehta hai, wake word dobara bolna nahi padta.",
+                "Live mode me har jawab ke baad mic khud khul jaata hai aur beech me wake word bolke IRIS ko tok sakte ho. " +
+                    "Continuous mode sirf 3 follow-up turn deta hai.",
+                style = MonoTiny,
+                color = IrisColors.Zinc600,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+
+        GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
+            PanelHeader(
+                title = "VOICE MODELS",
+                subtitle = "ON-DEVICE \u00b7 EK BAAR DOWNLOAD",
+                trailing = {
+                    Text(
+                        if (neuralVoice && NeuralTts.installed(context)) "NEURAL" else "SYSTEM",
+                        style = MonoTiny,
+                        color = IrisColors.Accent
+                    )
+                }
+            )
+            ToggleRow("IRIS NEURAL VOICE (VITS)", neuralVoice) {
+                neuralVoice = it
+                store.nttsEnabled = it
+                if (it && !NeuralTts.installed(context)) {
+                    voiceNote = "Model download shuru\u2026 (~30 MB)"
+                    thread {
+                        val ok = NeuralTts.download(context)
+                        if (ok) NeuralTts.prepare(context)
+                    }
+                }
+            }
+            ActionRow(
+                if (NeuralTts.installed(context)) "NEURAL VOICE MODEL DELETE" else "NEURAL VOICE MODEL DOWNLOAD"
+            ) {
+                if (NeuralTts.installed(context)) {
+                    NeuralTts.delete(context)
+                    neuralVoice = false
+                    store.nttsEnabled = false
+                    voiceNote = "Model delete ho gaya."
+                } else {
+                    voiceNote = "Model download shuru\u2026 (~30 MB)"
+                    thread {
+                        if (NeuralTts.download(context)) {
+                            store.nttsEnabled = true
+                            NeuralTts.prepare(context)
+                        }
+                    }
+                }
+            }
+            ToggleRow("NEURAL WAKE WORD (OPENWAKEWORD)", neuralWake) {
+                neuralWake = it
+                store.owwEnabled = it
+                if (it) {
+                    voiceNote = "Wake word model taiyaar ho raha hai\u2026"
+                    thread { OpenWakeWord.download(context, store.wakeModel) }
+                }
+            }
+            FieldRow(label = "WAKE MODEL", value = wakeModel) {
+                wakeModel = it
+                store.wakeModel = it
+            }
+            ToggleRow("VOSK OFFLINE STT", voskOn) {
+                voskOn = it
+                store.voskEnabled = it
+            }
+            if (voiceNote.isNotBlank()) {
+                Text(voiceNote, style = MonoTiny, color = IrisColors.Accent, modifier = Modifier.padding(top = 6.dp))
+            }
+            Text(
+                "Neural voice = IRIS ki apni awaaz, phone ke TTS se alag, aur offline. " +
+                    "Wake model options: hey_jarvis_v0.1, alexa_v0.1, hey_mycroft_v0.1, hey_rhasspy_v0.1.",
                 style = MonoTiny,
                 color = IrisColors.Zinc600,
                 modifier = Modifier.padding(top = 6.dp)
@@ -149,11 +233,15 @@ fun SettingsScreen(isSystemActive: Boolean) {
                     bubbleOn = false
                 }
             }
+            ToggleRow("LIVE SUBTITLE IN BUBBLE", subtitle) {
+                subtitle = it
+                store.bubbleSubtitle = it
+            }
             ActionRow("DISPLAY OVER OTHER APPS") {
                 OverlayBubbleService.requestPermission(context)
             }
             Text(
-                "Bubble ko drag karke kahin bhi rakho, tap karne par IRIS khul jayega.",
+                "Bubble ko drag karke kahin bhi rakho. Live subtitle on ho to jo bol rahe ho aur IRIS ka jawab dono bubble me dikhte hain.",
                 style = MonoTiny,
                 color = IrisColors.Zinc600,
                 modifier = Modifier.padding(top = 6.dp)
@@ -161,7 +249,7 @@ fun SettingsScreen(isSystemActive: Boolean) {
         }
 
         GlassPanel(modifier = Modifier.fillMaxWidth(), radius = 18) {
-            PanelHeader(title = "CLOUD BRAIN", subtitle = "OPTIONAL · USED ONLY WHEN ONLINE")
+            PanelHeader(title = "CLOUD BRAIN", subtitle = "OPTIONAL \u00b7 USED ONLY WHEN ONLINE")
             FieldRow(label = "BASE URL", value = baseUrl) {
                 baseUrl = it
                 store.baseUrl = it
@@ -187,8 +275,13 @@ fun SettingsScreen(isSystemActive: Boolean) {
             ActionRow("ACCESSIBILITY (SCREEN CONTROL)") {
                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
-            ActionRow("NOTIFICATION ACCESS") {
+            ActionRow("NOTIFICATION ACCESS (MUSIC CONTROL)") {
                 context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+            }
+            ActionRow("DO NOT DISTURB ACCESS") {
+                runCatching {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                }
             }
             ActionRow("MODIFY SYSTEM SETTINGS (BRIGHTNESS)") {
                 runCatching {
@@ -220,6 +313,10 @@ fun SettingsScreen(isSystemActive: Boolean) {
                 runCatching {
                     context.startActivity(Intent("com.android.settings.TTS_SETTINGS"))
                 }
+            }
+            ActionRow("SETUP WIZARD DOBARA DIKHAO") {
+                store.onboardingDone = false
+                voiceNote = "App dobara kholo, wizard aa jayega."
             }
         }
     }

@@ -20,9 +20,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.irisx.ai.core.agent.ToolCall
 import com.irisx.ai.core.agent.ToolRegistry
+import com.irisx.ai.data.SettingsStore
 import com.irisx.ai.ui.AssistantViewModel
 import com.irisx.ai.ui.IrisRoot
 import com.irisx.ai.ui.SplashOverlay
+import com.irisx.ai.ui.onboarding.OnboardingScreen
 import com.irisx.ai.ui.theme.IrisColors
 import com.irisx.ai.ui.theme.IrisTheme
 
@@ -36,9 +38,12 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         requestCorePermissions()
 
+        val store = SettingsStore(this)
+
         setContent {
             IrisTheme {
                 var showSplash by remember { mutableStateOf(true) }
+                var showOnboarding by remember { mutableStateOf(!store.onboardingDone) }
                 val vm: AssistantViewModel = viewModel()
                 val state by vm.state.collectAsStateWithLifecycle()
 
@@ -54,6 +59,9 @@ class MainActivity : ComponentActivity() {
                         onSendText = vm::submitText,
                         onStopSpeaking = vm::stopSpeaking
                     )
+                    if (showOnboarding && !showSplash) {
+                        OnboardingScreen(onDone = { showOnboarding = false })
+                    }
                     if (showSplash) {
                         SplashOverlay(onDone = { showSplash = false })
                     }
