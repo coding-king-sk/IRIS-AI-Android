@@ -3,7 +3,7 @@ package com.irisx.ai.data
 import android.content.Context
 import android.content.SharedPreferences
 
-/** Plain SharedPreferences — zero extra deps, works fully offline. */
+/** Plain SharedPreferences - zero extra deps, works fully offline. */
 class SettingsStore(context: Context) {
 
     private val prefs: SharedPreferences =
@@ -50,6 +50,14 @@ class SettingsStore(context: Context) {
         set(value) = prefs.edit().putString(KEY_OWW_MODEL, value.trim()).apply()
 
     /**
+     * On-device neural voice (VITS via ONNX Runtime). When off, or when the
+     * model has not been downloaded, the phone's own TTS engine is used.
+     */
+    var nttsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_NTTS, false)
+        set(value) = prefs.edit().putBoolean(KEY_NTTS, value).apply()
+
+    /**
      * Live-call style conversation: after every answer the mic reopens on its
      * own, and the wake word can cut IRIS off mid-sentence.
      */
@@ -90,6 +98,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SOUND_CUES, true)
         set(value) = prefs.edit().putBoolean(KEY_SOUND_CUES, value).apply()
 
+    /** Live subtitle inside the floating bubble while IRIS listens/answers. */
+    var bubbleSubtitle: Boolean
+        get() = prefs.getBoolean(KEY_SUBTITLE, true)
+        set(value) = prefs.edit().putBoolean(KEY_SUBTITLE, value).apply()
+
     /** Accent palette id: green, cyan, amber or violet. */
     var accent: String
         get() = prefs.getString(KEY_ACCENT, "green") ?: "green"
@@ -121,6 +134,7 @@ class SettingsStore(context: Context) {
         const val KEY_VOSK = "vosk_enabled"
         const val KEY_OWW = "oww_enabled"
         const val KEY_OWW_MODEL = "oww_model"
+        const val KEY_NTTS = "ntts_enabled"
         const val KEY_LIVE = "live_mode"
         const val KEY_LOCAL_ONLY = "local_only"
         const val KEY_TTS = "tts_enabled"
@@ -129,6 +143,7 @@ class SettingsStore(context: Context) {
         const val KEY_CONTINUOUS = "continuous_mode"
         const val KEY_HAPTICS = "haptics"
         const val KEY_SOUND_CUES = "sound_cues"
+        const val KEY_SUBTITLE = "bubble_subtitle"
         const val KEY_ACCENT = "accent"
         const val KEY_ONBOARDING = "onboarding_done"
         const val KEY_VOICE_LOCK = "voice_lock"

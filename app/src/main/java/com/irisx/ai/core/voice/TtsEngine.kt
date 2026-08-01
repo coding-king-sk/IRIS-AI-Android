@@ -4,31 +4,34 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import com.irisx.ai.data.SettingsStore
 import java.util.Locale
 
 /**
- * On-device Text-to-Speech, tuned to sound like an assistant instead of a
- * navigation robot.
+ * Speech output with two engines.
  *
- * What makes the difference:
- *  - The system default voice is usually the cheapest "compact" one. We walk
- *    every installed voice and pick the highest quality English voice,
- *    preferring en-IN, then en-GB, then en-US.
- *  - Slightly lower pitch and a calmer rate read as "AI assistant".
- *  - Markdown/emoji junk is stripped, and sentences get a short breath between
- *    them so long answers do not come out as one flat rush.
+ *  1. [NeuralTts] - an on-device VITS model. This is the "IRIS ki apni awaaz":
+ *     same voice on every phone, works offline, no Google app needed. Used
+ *     whenever the model is downloaded and the setting is on.
+ *  2. The phone's own TextToSpeech - always available fallback. We still pick
+ *     the best installed English voice (en-IN > en-GB > en-US, non compact),
+ *     drop the pitch a little and add a breath between sentences so it does
+ *     not sound like a navigation robot.
  */
 class TtsEngine(context: Context) {
+
+    private val appContext = context.applicationContext
+    private val settings = SettingsStore(appContext)
 
     private var ready = false
     private val pending = ArrayDeque<Pair<String, Float>>()
     private var doneCallback: (() -> Unit)? = null
 
-    /** Name of the voice actually in use — handy for Settings/diagnostics. */
+    /** Name of the voice actually in use - handy for Settings/diagnostics. */
     var voiceLabel: String = "SYSTEM DEFAULT"
         private set
 
-    private val tts = TextToSpeech(context.applicationContext) { status ->
+    private val tts = TextToSpeech(appContext) { status ->
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
             applyIrisVoice()
@@ -53,6 +56,10 @@ class TtsEngine(context: Context) {
             }
         })
     }
+
+    /** True when the downloaded neural voice is switched on and present. */
+    fun neuralReady(): Boolean =
+        settings.nttsEnabled && NeuralTts.installed(appContext)
 
     /** Pick the best available English voice and set the assistant tone. */
     private fun applyIrisVoice() {
@@ -98,6 +105,13 @@ class TtsEngine(context: Context) {
             onDone()
             return
         }
+        if (neuralReady()) {
+            val started = NeuralTts.speak(appContext, clean, rate * RATE_TRIM, onDone)
+            if (started) {
+                voiceLabel = "IRIS NEURAL (VITS)"
+                return
+            }
+        }
         if (!ready) {
             pending.addLast(clean to rate)
             return
@@ -107,7 +121,7 @@ class TtsEngine(context: Context) {
 
     private fun enqueue(text: String, rate: Float) {
         runCatching { tts.setPitch(PITCH) }
-        // A touch slower than the caller asks for — reads calmer, less robotic.
+        // A touch slower than the caller asks for - reads calmer, less robotic.
         tts.setSpeechRate((rate * RATE_TRIM).coerceIn(0.5f, 2.0f))
         val id = "iris-" + System.nanoTime().toString()
         val parts = text.split(Regex("(?<=[.!?\u0964])\\s+")).filter { it.isNotBlank() }
@@ -137,10 +151,12 @@ class TtsEngine(context: Context) {
         .trim()
 
     fun stop() {
+        runCatching { NeuralTts.stop() }
         runCatching { tts.stop() }
     }
 
     fun shutdown() {
+        runCatching { NeuralTts.stop() }
         runCatching {
             tts.stop()
             tts.shutdown()

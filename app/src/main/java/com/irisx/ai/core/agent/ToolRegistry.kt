@@ -27,6 +27,8 @@ import com.irisx.ai.core.tools.MacroSaveTool
 import com.irisx.ai.core.tools.MediaTool
 import com.irisx.ai.core.tools.MemorySearchTool
 import com.irisx.ai.core.tools.MusicControlTool
+import com.irisx.ai.core.tools.NeuralVoiceSetupTool
+import com.irisx.ai.core.tools.NeuralVoiceStatusTool
 import com.irisx.ai.core.tools.NeuralWakeSetupTool
 import com.irisx.ai.core.tools.NeuralWakeStatusTool
 import com.irisx.ai.core.tools.NoteTool
@@ -110,6 +112,8 @@ class ToolRegistry(private val context: Context) {
         VoskStatusTool(),
         NeuralWakeSetupTool(),
         NeuralWakeStatusTool(),
+        NeuralVoiceSetupTool(),
+        NeuralVoiceStatusTool(),
         SettingsPanelTool(),
         ConnectivityTool(),
         CalculatorTool(),
